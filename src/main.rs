@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::{env, fs, io};
 
 use eyre::Result;
@@ -33,6 +34,7 @@ fn run_prompt() -> Result<()> {
 
     loop {
         print!("> ");
+        io::stdout().flush().unwrap();
         let bytes_read = io::stdin().read_line(&mut buffer)?;
         if bytes_read == 0 {
             break;
