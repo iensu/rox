@@ -40,8 +40,10 @@ fn run_prompt() -> Result<()> {
             break;
         }
 
+        let input = buffer.to_string().trim_end().to_string();
+
         // Do not crash on error!
-        if let Err(err) = run(buffer.to_string()) {
+        if let Err(err) = run(input) {
             report(err);
         }
 
@@ -52,7 +54,8 @@ fn run_prompt() -> Result<()> {
 }
 
 fn run(program: String) -> Result<()> {
-    let tokens = token::scan_tokens(&program);
+    let mut scanner = token::Scanner::new(&program);
+    let tokens = scanner.scan_tokens()?;
 
     for t in tokens {
         println!("{t:?}");
