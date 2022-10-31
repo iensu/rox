@@ -87,7 +87,7 @@ pub struct Scanner<'a> {
     start: usize,
     current: usize,
     line: usize,
-    column: usize,
+    column_offset: usize,
     source: &'a str,
     chars: Peekable<Chars<'a>>,
 }
@@ -98,7 +98,7 @@ impl<'a> Scanner<'a> {
             start: 0,
             current: 0,
             line: 1,
-            column: 0,
+            column_offset: 0,
             source,
             chars: source.chars().peekable(),
         }
@@ -125,7 +125,7 @@ impl<'a> Scanner<'a> {
                 "".into(),
                 Literal::Null,
                 self.line,
-                self.current,
+                self.current - self.column_offset,
             ));
         }
 
@@ -152,7 +152,7 @@ impl<'a> Scanner<'a> {
                 "".into(),
                 Literal::Null,
                 self.line,
-                self.current,
+                self.current - self.column_offset,
             ));
         }
         let c = c.unwrap();
@@ -180,6 +180,8 @@ impl<'a> Scanner<'a> {
             // New line
             '\n' => {
                 self.line += 1;
+                self.column_offset = self.current;
+                self.start = self.current;
                 self.scan_token()
             }
             // Comment or SLASH
@@ -188,6 +190,7 @@ impl<'a> Scanner<'a> {
                     while !self.is_at_end() && self.chars.peek() != Some(&'\n') {
                         self.advance();
                     }
+                    self.current += 1;
                     self.scan_token()
                 } else {
                     Ok(self.create_token(SLASH))
@@ -195,11 +198,9 @@ impl<'a> Scanner<'a> {
             }
 
             _ => {
-                return Err(eyre!(
-                    "Line {} Col {}: Unexpected character '{c}'",
-                    self.line,
-                    self.start
-                ));
+                let line = self.line;
+                let col = self.start - self.column_offset;
+                return Err(eyre!("Line {line} Col {col}: Unexpected character '{c}'"));
             }
         }
     }
@@ -207,7 +208,13 @@ impl<'a> Scanner<'a> {
     fn create_token(&mut self, t: TokenType) -> Token {
         let lexeme = &self.source[self.start..self.current];
 
-        Token::new(t, lexeme.into(), Literal::Null, self.line, self.start)
+        Token::new(
+            t,
+            String::from_utf8(lexeme.into()).unwrap(),
+            Literal::Null,
+            self.line,
+            self.start - self.column_offset,
+        )
     }
 
     fn one_or_two_char_token(
@@ -302,8 +309,8 @@ mod test {
     #[test]
     fn comments_are_ignored() {
         let test_cases: Vec<(&str, Vec<(usize, usize, TokenType)>)> = vec![
-            ("// a comment", vec![(13, 13, EOF)]),
-            ("* // a comment", vec![(0, 1, STAR), (15, 15, EOF)]),
+            ("// a comment", vec![(14, 14, EOF)]),
+            ("* // a comment", vec![(0, 1, STAR), (16, 16, EOF)]),
         ];
 
         for (source, expected) in test_cases {
@@ -325,5 +332,30 @@ mod test {
 
             assert_eq!(tokens, expected);
         }
+    }
+
+    #[test]
+    fn newlines_are_handled_correctly() {
+        let source = "
+* () {
+  + // a comment
+  b };
+"
+        .trim();
+        let expected = vec![
+            Token::new(STAR, "*".into(), L::Null, 1, 0),
+            Token::new(LEFT_PAREN, "(".into(), L::Null, 1, 2),
+            Token::new(RIGHT_PAREN, ")".into(), L::Null, 1, 3),
+            Token::new(LEFT_BRACE, "{".into(), L::Null, 1, 5),
+            Token::new(PLUS, "+".into(), L::Null, 2, 2),
+            Token::new(RIGHT_BRACE, "}".into(), L::Null, 3, 0),
+            Token::new(SEMICOLON, ";".into(), L::Null, 3, 1),
+            Token::new(EOF, "".into(), L::Null, 3, 2),
+        ];
+
+        let mut scanner = Scanner::new(source);
+        let tokens = scanner.scan_tokens().unwrap();
+
+        assert_eq!(tokens, expected);
     }
 }
