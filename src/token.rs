@@ -3,7 +3,7 @@ use std::{iter::Peekable, str::Chars};
 use eyre::{eyre, Result};
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum TokenType {
     // Single character tokens
     LEFT_PAREN,
@@ -89,6 +89,7 @@ pub struct Scanner<'a> {
     line: usize,
     column: usize,
     source: &'a str,
+    chars: Peekable<Chars<'a>>,
 }
 
 impl<'a> Scanner<'a> {
@@ -99,36 +100,62 @@ impl<'a> Scanner<'a> {
             line: 1,
             column: 0,
             source,
+            chars: source.chars().peekable(),
         }
     }
 
     pub fn scan_tokens(&mut self) -> Result<Vec<Token>> {
-        let mut chars = self.source.chars().peekable();
         let mut tokens: Vec<Token> = Vec::new();
+        let mut got_eof = false;
 
-        while self.current < self.source.len() {
+        while !self.is_at_end() {
             self.start = self.current;
-            self.current += 1;
-
-            let token = self.scan_token(&mut chars)?;
+            let token = self.scan_token()?;
+            got_eof = token.token_type == TokenType::EOF;
             tokens.push(token);
+
+            if got_eof {
+                break;
+            }
         }
 
-        tokens.push(Token::new(
-            TokenType::EOF,
-            "".into(),
-            Literal::Null,
-            self.line,
-            self.current,
-        ));
+        if !got_eof {
+            tokens.push(Token::new(
+                TokenType::EOF,
+                "".into(),
+                Literal::Null,
+                self.line,
+                self.current,
+            ));
+        }
 
         Ok(tokens)
     }
 
-    fn scan_token(&mut self, chars: &mut Peekable<Chars>) -> Result<Token> {
+    fn is_at_end(&self) -> bool {
+        self.current >= self.source.len()
+    }
+
+    fn advance(&mut self) -> Option<char> {
+        self.current += 1;
+        self.chars.next()
+    }
+
+    fn scan_token(&mut self) -> Result<Token> {
         use TokenType::*;
 
-        let c = chars.next().unwrap();
+        let c = self.advance();
+
+        if c.is_none() {
+            return Ok(Token::new(
+                EOF,
+                "".into(),
+                Literal::Null,
+                self.line,
+                self.current,
+            ));
+        }
+        let c = c.unwrap();
 
         match c {
             '(' => Ok(self.create_token(LEFT_PAREN)),
@@ -141,38 +168,32 @@ impl<'a> Scanner<'a> {
             '+' => Ok(self.create_token(PLUS)),
             ';' => Ok(self.create_token(SEMICOLON)),
             '*' => Ok(self.create_token(STAR)),
-            '!' => {
-                if let Some(_) = chars.next_if_eq(&'=') {
-                    self.current += 1;
-                    Ok(self.create_token(BANG_EQUAL))
+            '!' => Ok(self.one_or_two_char_token(&'=', BANG, BANG_EQUAL)),
+            '>' => Ok(self.one_or_two_char_token(&'=', GREATER, GREATER_EQUAL)),
+            '<' => Ok(self.one_or_two_char_token(&'=', LESS, LESS_EQUAL)),
+            '=' => Ok(self.one_or_two_char_token(&'=', EQUAL, EQUAL_EQUAL)),
+            // Whitespace
+            ' ' | '\t' | '\r' => {
+                self.start = self.current;
+                self.scan_token()
+            }
+            // New line
+            '\n' => {
+                self.line += 1;
+                self.scan_token()
+            }
+            // Comment or SLASH
+            '/' => {
+                if let Some(_) = self.chars.next_if_eq(&'/') {
+                    while !self.is_at_end() && self.chars.peek() != Some(&'\n') {
+                        self.advance();
+                    }
+                    self.scan_token()
                 } else {
-                    Ok(self.create_token(BANG))
+                    Ok(self.create_token(SLASH))
                 }
             }
-            '>' => {
-                if let Some(_) = chars.next_if_eq(&'=') {
-                    self.current += 1;
-                    Ok(self.create_token(GREATER_EQUAL))
-                } else {
-                    Ok(self.create_token(GREATER))
-                }
-            }
-            '<' => {
-                if let Some(_) = chars.next_if_eq(&'=') {
-                    self.current += 1;
-                    Ok(self.create_token(LESS_EQUAL))
-                } else {
-                    Ok(self.create_token(LESS))
-                }
-            }
-            '=' => {
-                if let Some(_) = chars.next_if_eq(&'=') {
-                    self.current += 1;
-                    Ok(self.create_token(EQUAL_EQUAL))
-                } else {
-                    Ok(self.create_token(EQUAL))
-                }
-            }
+
             _ => {
                 return Err(eyre!(
                     "Line {} Col {}: Unexpected character '{c}'",
@@ -188,6 +209,20 @@ impl<'a> Scanner<'a> {
 
         Token::new(t, lexeme.into(), Literal::Null, self.line, self.start)
     }
+
+    fn one_or_two_char_token(
+        &mut self,
+        check: &char,
+        single: TokenType,
+        double: TokenType,
+    ) -> Token {
+        if let Some(_) = self.chars.next_if_eq(check) {
+            self.current += 1;
+            self.create_token(double)
+        } else {
+            self.create_token(single)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -197,7 +232,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn single_tokens_are_parsed_correctly() {
+    fn tokens_are_parsed_correctly() {
         let test_cases = vec![
             ("(", LEFT_PAREN),
             (")", RIGHT_PAREN),
@@ -213,6 +248,7 @@ mod test {
             ("<", LESS),
             (">", GREATER),
             ("=", EQUAL),
+            ("/", SLASH),
             ("!=", BANG_EQUAL),
             ("<=", LESS_EQUAL),
             (">=", GREATER_EQUAL),
@@ -228,6 +264,64 @@ mod test {
                 Token::new(token_type, source.to_string(), L::Null, 1, 0),
                 Token::new(EOF, "".into(), L::Null, 1, source.len()),
             ];
+
+            assert_eq!(tokens, expected);
+        }
+    }
+
+    #[test]
+    fn whitespace_is_ignored() {
+        let test_cases: Vec<(&str, Vec<(usize, usize, TokenType)>)> = vec![
+            (
+                "( )",
+                vec![(0, 1, LEFT_PAREN), (2, 3, RIGHT_PAREN), (3, 3, EOF)],
+            ),
+            (
+                "  !=\t\t   ==",
+                vec![(2, 4, BANG_EQUAL), (9, 11, EQUAL_EQUAL), (11, 11, EOF)],
+            ),
+        ];
+
+        for (source, expected) in test_cases {
+            let mut scanner = Scanner::new(source);
+            let tokens = scanner
+                .scan_tokens()
+                .expect(&format!("Failed to scan token '{source}'"));
+            let expected = expected
+                .iter()
+                .map(|(start, end, token_type)| {
+                    let lexeme = &source[*start..*end];
+                    Token::new(*token_type, lexeme.into(), L::Null, 1, *start)
+                })
+                .collect::<Vec<Token>>();
+
+            assert_eq!(tokens, expected);
+        }
+    }
+
+    #[test]
+    fn comments_are_ignored() {
+        let test_cases: Vec<(&str, Vec<(usize, usize, TokenType)>)> = vec![
+            ("// a comment", vec![(13, 13, EOF)]),
+            ("* // a comment", vec![(0, 1, STAR), (15, 15, EOF)]),
+        ];
+
+        for (source, expected) in test_cases {
+            let mut scanner = Scanner::new(source);
+            let tokens = scanner
+                .scan_tokens()
+                .expect(&format!("Failed to scan token '{source}'"));
+            let expected = expected
+                .iter()
+                .map(|(start, end, token_type)| {
+                    let lexeme = if *token_type == EOF {
+                        ""
+                    } else {
+                        &source[*start..*end]
+                    };
+                    Token::new(*token_type, lexeme.into(), L::Null, 1, *start)
+                })
+                .collect::<Vec<Token>>();
 
             assert_eq!(tokens, expected);
         }
