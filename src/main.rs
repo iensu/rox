@@ -3,6 +3,7 @@ use std::{env, fs, io};
 
 use eyre::Result;
 
+mod expression;
 mod token;
 
 fn main() -> Result<()> {
