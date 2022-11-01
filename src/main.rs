@@ -4,6 +4,7 @@ use std::{env, fs, io};
 use eyre::Result;
 
 mod expression;
+mod parser;
 mod token;
 
 fn main() -> Result<()> {
