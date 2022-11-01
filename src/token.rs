@@ -1,4 +1,4 @@
-use std::{iter::Peekable, str::Chars};
+use std::str::Chars;
 
 use eyre::{eyre, Result};
 
@@ -54,6 +54,7 @@ pub enum TokenType {
 #[derive(Debug, PartialEq)]
 pub enum Literal {
     Null,
+    Number(f64),
 }
 
 #[derive(Debug, PartialEq)]
@@ -89,7 +90,7 @@ pub struct Scanner<'a> {
     line: usize,
     column_offset: usize,
     source: &'a str,
-    chars: Peekable<Chars<'a>>,
+    chars: itertools::PeekNth<Chars<'a>>,
 }
 
 impl<'a> Scanner<'a> {
@@ -100,34 +101,32 @@ impl<'a> Scanner<'a> {
             line: 1,
             column_offset: 0,
             source,
-            chars: source.chars().peekable(),
+            chars: itertools::peek_nth(source.chars()),
         }
     }
 
     pub fn scan_tokens(&mut self) -> Result<Vec<Token>> {
         let mut tokens: Vec<Token> = Vec::new();
-        let mut got_eof = false;
 
         while !self.is_at_end() {
             self.start = self.current;
+
             let token = self.scan_token()?;
-            got_eof = token.token_type == TokenType::EOF;
-            tokens.push(token);
 
-            if got_eof {
-                break;
+            if token.is_none() {
+                continue;
             }
+
+            tokens.push(token.unwrap());
         }
 
-        if !got_eof {
-            tokens.push(Token::new(
-                TokenType::EOF,
-                "".into(),
-                Literal::Null,
-                self.line,
-                self.current - self.column_offset,
-            ));
-        }
+        tokens.push(Token::new(
+            TokenType::EOF,
+            "".into(),
+            Literal::Null,
+            self.line,
+            self.current - self.column_offset,
+        ));
 
         Ok(tokens)
     }
@@ -141,60 +140,74 @@ impl<'a> Scanner<'a> {
         self.chars.next()
     }
 
-    fn scan_token(&mut self) -> Result<Token> {
+    fn scan_token(&mut self) -> Result<Option<Token>> {
         use TokenType::*;
-
         let c = self.advance();
 
         if c.is_none() {
-            return Ok(Token::new(
-                EOF,
-                "".into(),
-                Literal::Null,
-                self.line,
-                self.current - self.column_offset,
-            ));
+            return Ok(None);
         }
+
         let c = c.unwrap();
 
         match c {
-            '(' => Ok(self.create_token(LEFT_PAREN)),
-            ')' => Ok(self.create_token(RIGHT_PAREN)),
-            '{' => Ok(self.create_token(LEFT_BRACE)),
-            '}' => Ok(self.create_token(RIGHT_BRACE)),
-            ',' => Ok(self.create_token(COMMA)),
-            '.' => Ok(self.create_token(DOT)),
-            '-' => Ok(self.create_token(MINUS)),
-            '+' => Ok(self.create_token(PLUS)),
-            ';' => Ok(self.create_token(SEMICOLON)),
-            '*' => Ok(self.create_token(STAR)),
-            '!' => Ok(self.one_or_two_char_token(&'=', BANG, BANG_EQUAL)),
-            '>' => Ok(self.one_or_two_char_token(&'=', GREATER, GREATER_EQUAL)),
-            '<' => Ok(self.one_or_two_char_token(&'=', LESS, LESS_EQUAL)),
-            '=' => Ok(self.one_or_two_char_token(&'=', EQUAL, EQUAL_EQUAL)),
+            '(' => Ok(Some(self.create_token(LEFT_PAREN))),
+            ')' => Ok(Some(self.create_token(RIGHT_PAREN))),
+            '{' => Ok(Some(self.create_token(LEFT_BRACE))),
+            '}' => Ok(Some(self.create_token(RIGHT_BRACE))),
+            ',' => Ok(Some(self.create_token(COMMA))),
+            '.' => Ok(Some(self.create_token(DOT))),
+            '-' => Ok(Some(self.create_token(MINUS))),
+            '+' => Ok(Some(self.create_token(PLUS))),
+            ';' => Ok(Some(self.create_token(SEMICOLON))),
+            '*' => Ok(Some(self.create_token(STAR))),
+            '!' => Ok(Some(self.one_or_two_char_token(&'=', BANG, BANG_EQUAL))),
+            '>' => Ok(Some(self.one_or_two_char_token(
+                &'=',
+                GREATER,
+                GREATER_EQUAL,
+            ))),
+            '<' => Ok(Some(self.one_or_two_char_token(&'=', LESS, LESS_EQUAL))),
+            '=' => Ok(Some(self.one_or_two_char_token(&'=', EQUAL, EQUAL_EQUAL))),
             // Whitespace
-            ' ' | '\t' | '\r' => {
-                self.start = self.current;
-                self.scan_token()
-            }
+            ' ' | '\t' | '\r' => Ok(None),
             // New line
             '\n' => {
                 self.line += 1;
                 self.column_offset = self.current;
-                self.start = self.current;
-                self.scan_token()
+                Ok(None)
             }
             // Comment or SLASH
             '/' => {
-                if let Some(_) = self.chars.next_if_eq(&'/') {
+                if self.chars.peek() == Some(&'/') {
+                    self.advance(); // Consume the forward slash
                     while !self.is_at_end() && self.chars.peek() != Some(&'\n') {
                         self.advance();
                     }
-                    self.current += 1;
-                    self.scan_token()
+                    Ok(None)
                 } else {
-                    Ok(self.create_token(SLASH))
+                    Ok(Some(self.create_token(SLASH)))
                 }
+            }
+
+            c if c.is_ascii_digit() => {
+                while !self.is_at_end()
+                    && (self.chars.peek().map_or(false, |c| c.is_ascii_digit())
+                        || self.chars.peek() == Some(&'.')
+                            && self.chars.peek_nth(1).map_or(false, |c| c.is_ascii_digit()))
+                {
+                    self.advance();
+                }
+                let lexeme = &self.source[self.start..self.current];
+                let number = lexeme.parse::<f64>().unwrap();
+
+                Ok(Some(Token::new(
+                    NUMBER,
+                    lexeme.into(),
+                    Literal::Number(number),
+                    self.line,
+                    self.start - self.column_offset,
+                )))
             }
 
             _ => {
@@ -223,8 +236,8 @@ impl<'a> Scanner<'a> {
         single: TokenType,
         double: TokenType,
     ) -> Token {
-        if let Some(_) = self.chars.next_if_eq(check) {
-            self.current += 1;
+        if self.chars.peek() == Some(check) {
+            self.advance();
             self.create_token(double)
         } else {
             self.create_token(single)
@@ -309,8 +322,8 @@ mod test {
     #[test]
     fn comments_are_ignored() {
         let test_cases: Vec<(&str, Vec<(usize, usize, TokenType)>)> = vec![
-            ("// a comment", vec![(14, 14, EOF)]),
-            ("* // a comment", vec![(0, 1, STAR), (16, 16, EOF)]),
+            ("// a comment", vec![(12, 12, EOF)]),
+            ("* // a comment", vec![(0, 1, STAR), (14, 14, EOF)]),
         ];
 
         for (source, expected) in test_cases {
@@ -339,7 +352,7 @@ mod test {
         let source = "
 * () {
   + // a comment
-  b };
+};
 "
         .trim();
         let expected = vec![
@@ -357,5 +370,59 @@ mod test {
         let tokens = scanner.scan_tokens().unwrap();
 
         assert_eq!(tokens, expected);
+    }
+
+    #[test]
+    fn numbers_are_parsed_correctly() {
+        let test_cases = vec![
+            (
+                "1",
+                vec![
+                    Token::new(NUMBER, "1".into(), L::Number(1.), 1, 0),
+                    Token::new(EOF, "".into(), L::Null, 1, 1),
+                ],
+            ),
+            (
+                "42",
+                vec![
+                    Token::new(NUMBER, "42".into(), L::Number(42.), 1, 0),
+                    Token::new(EOF, "".into(), L::Null, 1, 2),
+                ],
+            ),
+            (
+                "3.14",
+                vec![
+                    Token::new(NUMBER, "3.14".into(), L::Number(3.14), 1, 0),
+                    Token::new(EOF, "".into(), L::Null, 1, 4),
+                ],
+            ),
+        ];
+
+        for (source, expected) in test_cases {
+            let mut scanner = Scanner::new(source);
+            let tokens = scanner.scan_tokens().unwrap();
+            assert_eq!(tokens, expected);
+        }
+    }
+
+    #[test]
+    fn mathematical_expression() {
+        let test_cases = vec![(
+            "1000 + 1000000 = 1001000",
+            vec![
+                Token::new(NUMBER, "1000".into(), L::Number(1000.), 1, 0),
+                Token::new(PLUS, "+".into(), L::Null, 1, 5),
+                Token::new(NUMBER, "1000000".into(), L::Number(1000000.), 1, 7),
+                Token::new(EQUAL, "=".into(), L::Null, 1, 15),
+                Token::new(NUMBER, "1001000".into(), L::Number(1001000.), 1, 17),
+                Token::new(EOF, "".into(), L::Null, 1, 24),
+            ],
+        )];
+
+        for (source, expected) in test_cases {
+            let mut scanner = Scanner::new(source);
+            let tokens = scanner.scan_tokens().unwrap();
+            assert_eq!(tokens, expected);
+        }
     }
 }
