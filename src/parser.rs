@@ -147,7 +147,7 @@ fn do_match(types: &[TokenType], tokens: &Vec<Token>, index: usize) -> bool {
 
 #[cfg(test)]
 mod test {
-    use crate::token::Scanner;
+    use crate::scanner::Scanner;
 
     use super::parse;
 

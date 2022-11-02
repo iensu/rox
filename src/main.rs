@@ -6,6 +6,7 @@ use eyre::Result;
 mod expression;
 mod keywords;
 mod parser;
+mod scanner;
 mod token;
 
 fn main() -> Result<()> {
@@ -59,7 +60,7 @@ fn run_prompt() -> Result<()> {
 }
 
 fn run(program: String) -> Result<()> {
-    let mut scanner = token::Scanner::new(&program);
+    let mut scanner = scanner::Scanner::new(&program);
     let tokens = scanner.scan_tokens()?;
     let expression = parser::parse(&tokens)?;
 
