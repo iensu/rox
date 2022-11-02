@@ -22,65 +22,88 @@ fn expression<'a>(tokens: &'a Vec<Token>, start_index: usize) -> Result<(Expr, u
 
 fn equality<'a>(tokens: &'a Vec<Token>, start_index: usize) -> Result<(Expr, usize)> {
     trace!("Started parsing equality [idx: {start_index}]");
+
     let (mut expr, mut current) = comparison(tokens, start_index)?;
-    while do_match(&[BANG_EQUAL, EQUAL_EQUAL], tokens, current + 1) {
+
+    while match_next(&[BANG_EQUAL, EQUAL_EQUAL], tokens, current) {
         current += 1;
+
         trace!("Building equality expression [idx: {current}]");
-        let operator = tokens.get(current).unwrap();
+
+        let operator = tokens.get(current).ok_or(eyre!("No more tokens!"))?;
+
         current += 1;
+
         let (right, idx) = comparison(tokens, current)?;
-        expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+
         current = idx;
+        expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
     }
     Ok((expr, current))
 }
 
 fn comparison<'a>(tokens: &'a Vec<Token>, start_index: usize) -> Result<(Expr, usize)> {
     trace!("Started parsing comparison [idx: {start_index}]");
+
     let (mut expr, mut current) = term(tokens, start_index)?;
-    while do_match(
-        &[GREATER, GREATER_EQUAL, LESS, LESS_EQUAL],
-        tokens,
-        current + 1,
-    ) {
+
+    while match_next(&[GREATER, GREATER_EQUAL, LESS, LESS_EQUAL], tokens, current) {
         current += 1;
+
         trace!("Building comparison expression [idx: {current}]");
-        let operator = tokens.get(current).unwrap();
+
+        let operator = tokens.get(current).ok_or(eyre!("No more tokens!"))?;
+
         current += 1;
+
         let (right, idx) = term(tokens, current)?;
-        expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+
         current = idx;
+        expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
     }
     Ok((expr, current))
 }
 
 fn term<'a>(tokens: &'a Vec<Token>, start_index: usize) -> Result<(Expr, usize)> {
     trace!("Started parsing term [idx: {start_index}]");
-    let (mut expr, mut current) = factor(tokens, start_index)?;
-    while do_match(&[MINUS, PLUS], tokens, current + 1) {
-        current += 1;
-        trace!("Building term expression [idx: {current}]");
-        let operator = tokens.get(current).unwrap();
-        current += 1;
-        let (right, idx) = factor(tokens, current)?;
-        expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
-        current = idx;
-    }
 
+    let (mut expr, mut current) = factor(tokens, start_index)?;
+
+    while match_next(&[MINUS, PLUS], tokens, current) {
+        current += 1;
+
+        trace!("Building term expression [idx: {current}]");
+
+        let operator = tokens.get(current).ok_or(eyre!("No more tokens!"))?;
+
+        current += 1;
+
+        let (right, idx) = factor(tokens, current)?;
+
+        current = idx;
+        expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+    }
     Ok((expr, current))
 }
 
 fn factor<'a>(tokens: &'a Vec<Token>, start_index: usize) -> Result<(Expr, usize)> {
     trace!("Started parsing factor [idx: {start_index}]");
+
     let (mut expr, mut current) = unary(tokens, start_index)?;
-    while do_match(&[SLASH, STAR], tokens, current + 1) {
+
+    while match_next(&[SLASH, STAR], tokens, current) {
         current += 1;
+
         trace!("Building factor expression [idx: {current}]");
-        let operator = tokens.get(current).unwrap();
+
+        let operator = tokens.get(current).ok_or(eyre!("No more tokens!"))?;
+
         current += 1;
+
         let (right, idx) = unary(tokens, current)?;
-        expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+
         current = idx;
+        expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
     }
 
     Ok((expr, current))
@@ -88,11 +111,17 @@ fn factor<'a>(tokens: &'a Vec<Token>, start_index: usize) -> Result<(Expr, usize
 
 fn unary<'a>(tokens: &'a Vec<Token>, start_index: usize) -> Result<(Expr, usize)> {
     trace!("Started parsing unary [idx: {start_index}]");
-    if do_match(&[BANG, MINUS], tokens, start_index) {
+
+    if match_current(&[BANG, MINUS], tokens, start_index) {
         trace!("Building unary expression [idx: {start_index}]");
+
         let mut current = start_index;
-        let operator = tokens.get(current).unwrap();
-        let (right, idx) = unary(tokens, current + 1)?;
+
+        let operator = tokens.get(current).ok_or(eyre!("No more tokens!"))?;
+
+        let next = current + 1;
+        let (right, idx) = unary(tokens, next)?;
+
         current = idx;
         Ok((Expr::Unary(operator, Box::new(right)), current))
     } else {
@@ -103,8 +132,11 @@ fn unary<'a>(tokens: &'a Vec<Token>, start_index: usize) -> Result<(Expr, usize)
 
 fn primary<'a>(tokens: &'a Vec<Token>, start_index: usize) -> Result<(Expr, usize)> {
     trace!("Started parsing primary [idx: {start_index}]");
-    let token = tokens.get(start_index).unwrap();
+
+    let token = tokens.get(start_index).ok_or(eyre!("No more tokens!"))?;
+
     let mut current = start_index + 1;
+
     match token.token_type {
         FALSE | TRUE | NIL | STRING | NUMBER | IDENTIFIER => {
             trace!(
@@ -115,10 +147,15 @@ fn primary<'a>(tokens: &'a Vec<Token>, start_index: usize) -> Result<(Expr, usiz
         }
         LEFT_PAREN => {
             trace!("Started parsing grouping [idx: {start_index}]");
+
             let (expr, idx) = expression(tokens, current)?;
+
             trace!("Parsed sub-expression [idx: {idx}]");
+
             current = idx + 1;
-            let token = tokens.get(current).unwrap();
+
+            let token = tokens.get(current).ok_or(eyre!("No more tokens!"))?;
+
             if token.token_type == RIGHT_PAREN {
                 trace!("Closed sub-expression grouping [idx: {current}]");
                 Ok((Expr::Grouping(Box::new(expr)), current))
@@ -138,11 +175,16 @@ fn primary<'a>(tokens: &'a Vec<Token>, start_index: usize) -> Result<(Expr, usiz
     }
 }
 
-fn do_match(types: &[TokenType], tokens: &Vec<Token>, index: usize) -> bool {
-    trace!("Matching {types:?} against token [idx: {index}]");
-    tokens.get(index).map_or(false, |t| {
+fn match_current(types: &[TokenType], tokens: &Vec<Token>, current: usize) -> bool {
+    trace!("Matching {types:?} against token [idx: {current}]");
+
+    tokens.get(current).map_or(false, |t| {
         types.iter().any(|token_type| t.token_type == *token_type)
     })
+}
+
+fn match_next(types: &[TokenType], tokens: &Vec<Token>, current: usize) -> bool {
+    match_current(types, tokens, current + 1)
 }
 
 #[cfg(test)]

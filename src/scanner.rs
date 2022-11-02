@@ -31,13 +31,11 @@ impl<'a> Scanner<'a> {
         while !self.is_at_end() {
             self.start = self.current;
 
-            let token = self.scan_token()?;
-
-            if token.is_none() {
+            if let Some(token) = self.scan_token()? {
+                tokens.push(token);
+            } else {
                 continue;
             }
-
-            tokens.push(token.unwrap());
         }
 
         tokens.push(Token::new(
@@ -68,7 +66,7 @@ impl<'a> Scanner<'a> {
             return Ok(None);
         }
 
-        let c = c.unwrap();
+        let c = c.ok_or(eyre!("Could not get character!"))?;
 
         match c {
             '(' => Ok(Some(self.create_token(LEFT_PAREN))),
@@ -146,7 +144,9 @@ impl<'a> Scanner<'a> {
                     self.advance();
                 }
                 let lexeme = &self.source[self.start..self.current];
-                let number = lexeme.parse::<f64>().unwrap();
+                let number = lexeme
+                    .parse::<f64>()
+                    .map_err(|_| eyre!("Failed to parse '{lexeme}' as f64"))?;
 
                 Ok(Some(Token::new(
                     NUMBER,
