@@ -65,5 +65,9 @@ mod test {
         );
 
         assert_eq!(format!("{}", expr), "(+ (* 42 -10) (/ 100 12))");
+        assert_eq!(
+            format!("{}", Literal(&L::String("Hello".into()))),
+            "\"Hello\""
+        );
     }
 }
