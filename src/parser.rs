@@ -1,3 +1,5 @@
+use std::{cell::RefCell, slice::Iter};
+
 use crate::{
     expression::Expr,
     token::{
@@ -7,198 +9,176 @@ use crate::{
 };
 
 use eyre::{eyre, Result};
-use log::trace;
+use itertools::PeekNth;
+use log::{debug, trace};
 
-pub fn parse<'a>(tokens: &'a Vec<Token>) -> Result<Expr> {
-    let (expr, _) = expression(tokens, 0)?;
+type TokenStream<'a> = PeekNth<Iter<'a, Token>>;
 
-    Ok(expr)
+pub struct Parser<'a> {
+    tokens: RefCell<TokenStream<'a>>,
 }
 
-fn expression<'a>(tokens: &'a Vec<Token>, start_index: usize) -> Result<(Expr, usize)> {
-    trace!("Started parsing expression [idx: {start_index}]");
-    equality(tokens, start_index)
-}
-
-fn equality<'a>(tokens: &'a Vec<Token>, start_index: usize) -> Result<(Expr, usize)> {
-    trace!("Started parsing equality [idx: {start_index}]");
-
-    let (mut expr, mut current) = comparison(tokens, start_index)?;
-
-    while match_next(&[BANG_EQUAL, EQUAL_EQUAL], tokens, current) {
-        current += 1;
-
-        trace!("Building equality expression [idx: {current}]");
-
-        let operator = tokens.get(current).ok_or(eyre!("No more tokens!"))?;
-
-        current += 1;
-
-        let (right, idx) = comparison(tokens, current)?;
-
-        current = idx;
-        expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
-    }
-    Ok((expr, current))
-}
-
-fn comparison<'a>(tokens: &'a Vec<Token>, start_index: usize) -> Result<(Expr, usize)> {
-    trace!("Started parsing comparison [idx: {start_index}]");
-
-    let (mut expr, mut current) = term(tokens, start_index)?;
-
-    while match_next(&[GREATER, GREATER_EQUAL, LESS, LESS_EQUAL], tokens, current) {
-        current += 1;
-
-        trace!("Building comparison expression [idx: {current}]");
-
-        let operator = tokens.get(current).ok_or(eyre!("No more tokens!"))?;
-
-        current += 1;
-
-        let (right, idx) = term(tokens, current)?;
-
-        current = idx;
-        expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
-    }
-    Ok((expr, current))
-}
-
-fn term<'a>(tokens: &'a Vec<Token>, start_index: usize) -> Result<(Expr, usize)> {
-    trace!("Started parsing term [idx: {start_index}]");
-
-    let (mut expr, mut current) = factor(tokens, start_index)?;
-
-    while match_next(&[MINUS, PLUS], tokens, current) {
-        current += 1;
-
-        trace!("Building term expression [idx: {current}]");
-
-        let operator = tokens.get(current).ok_or(eyre!("No more tokens!"))?;
-
-        current += 1;
-
-        let (right, idx) = factor(tokens, current)?;
-
-        current = idx;
-        expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
-    }
-    Ok((expr, current))
-}
-
-fn factor<'a>(tokens: &'a Vec<Token>, start_index: usize) -> Result<(Expr, usize)> {
-    trace!("Started parsing factor [idx: {start_index}]");
-
-    let (mut expr, mut current) = unary(tokens, start_index)?;
-
-    while match_next(&[SLASH, STAR], tokens, current) {
-        current += 1;
-
-        trace!("Building factor expression [idx: {current}]");
-
-        let operator = tokens.get(current).ok_or(eyre!("No more tokens!"))?;
-
-        current += 1;
-
-        let (right, idx) = unary(tokens, current)?;
-
-        current = idx;
-        expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
-    }
-
-    Ok((expr, current))
-}
-
-fn unary<'a>(tokens: &'a Vec<Token>, start_index: usize) -> Result<(Expr, usize)> {
-    trace!("Started parsing unary [idx: {start_index}]");
-
-    if match_current(&[BANG, MINUS], tokens, start_index) {
-        trace!("Building unary expression [idx: {start_index}]");
-
-        let mut current = start_index;
-
-        let operator = tokens.get(current).ok_or(eyre!("No more tokens!"))?;
-
-        let next = current + 1;
-        let (right, idx) = unary(tokens, next)?;
-
-        current = idx;
-        Ok((Expr::Unary(operator, Box::new(right)), current))
-    } else {
-        trace!("No unary expression found [idx: {start_index}]");
-        primary(tokens, start_index)
-    }
-}
-
-fn primary<'a>(tokens: &'a Vec<Token>, start_index: usize) -> Result<(Expr, usize)> {
-    trace!("Started parsing primary [idx: {start_index}]");
-
-    let token = tokens.get(start_index).ok_or(eyre!("No more tokens!"))?;
-
-    let mut current = start_index + 1;
-
-    match token.token_type {
-        FALSE | TRUE | NIL | STRING | NUMBER | IDENTIFIER => {
-            trace!(
-                "  Resolved literal {:?} [idx: {start_index}]",
-                token.literal
-            );
-            Ok((Expr::Literal(&token.literal), start_index))
+impl<'a> Parser<'a> {
+    pub fn new(tokens: &'a Vec<Token>) -> Self {
+        Self {
+            tokens: RefCell::new(itertools::peek_nth(tokens.iter())),
         }
-        LEFT_PAREN => {
-            trace!("Started parsing grouping [idx: {start_index}]");
+    }
 
-            let (expr, idx) = expression(tokens, current)?;
+    pub fn parse(&self) -> Result<Expr<'a>> {
+        let expr = self.expression()?;
+        trace!("parse: {expr}");
+        Ok(expr)
+    }
 
-            trace!("Parsed sub-expression [idx: {idx}]");
+    fn expression(&self) -> Result<Expr<'a>> {
+        let expr = self.equality()?;
+        trace!("expression: {expr}");
+        Ok(expr)
+    }
 
-            current = idx + 1;
+    fn equality(&self) -> Result<Expr<'a>> {
+        let mut expr = self.comparison()?;
 
-            let token = tokens.get(current).ok_or(eyre!("No more tokens!"))?;
+        while self.match_next(&[BANG_EQUAL, EQUAL_EQUAL]) {
+            debug!("equality left: {expr:?}");
+            let operator = self.advance().ok_or(eyre!("No more tokens!"))?;
+            debug!("equality operator: {operator:?}");
+            let right = self.term()?;
+            debug!("equality right: {right:?}");
 
-            if token.token_type == RIGHT_PAREN {
-                trace!("Closed sub-expression grouping [idx: {current}]");
-                Ok((Expr::Grouping(Box::new(expr)), current))
-            } else {
-                Err(eyre!(format!(
-                    "Line: {} Col: {} | Expected ')' after expression, but got {}",
-                    token.line, token.column, token.lexeme
-                )))
+            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+        }
+
+        trace!("equality: {expr}");
+        Ok(expr)
+    }
+
+    fn comparison(&self) -> Result<Expr<'a>> {
+        let mut expr = self.term()?;
+
+        while self.match_next(&[GREATER, GREATER_EQUAL, LESS, LESS_EQUAL]) {
+            debug!("comparison left: {expr:?}");
+            let operator = self.advance().ok_or(eyre!("No more tokens!"))?;
+            debug!("comparison operator: {operator:?}");
+            let right = self.term()?;
+            debug!("comparison right: {right:?}");
+
+            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+        }
+
+        trace!("comparison: {expr}");
+        Ok(expr)
+    }
+
+    fn term(&self) -> Result<Expr<'a>> {
+        let mut expr = self.factor()?;
+
+        while self.match_next(&[PLUS, MINUS]) {
+            debug!("term left: {expr:?}");
+            let operator = self.advance().ok_or(eyre!("No more tokens!"))?;
+            debug!("term operator: {operator:?}");
+            let right = self.factor()?;
+            debug!("term right: {right:?}");
+
+            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+        }
+
+        trace!("term: {expr}");
+        Ok(expr)
+    }
+
+    fn factor(&self) -> Result<Expr<'a>> {
+        let mut expr = self.unary()?;
+
+        while self.match_next(&[STAR, SLASH]) {
+            debug!("factor left: {expr:?}");
+            let operator = self.advance().ok_or(eyre!("No more tokens!"))?;
+            debug!("factor operator: {operator:?}");
+            let right = self.unary()?;
+            debug!("factor right: {right:?}");
+
+            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+        }
+
+        trace!("factor: {expr}");
+        Ok(expr)
+    }
+
+    fn unary(&self) -> Result<Expr<'a>> {
+        let expr = if self.match_next(&[BANG, MINUS]) {
+            let operator = self.advance().ok_or(eyre!("No more tokens!"))?;
+            debug!("unary operator: {operator:?}");
+            let right = self.unary()?;
+            debug!("unary right: {right:?}");
+
+            Expr::Unary(operator, Box::new(right))
+        } else {
+            self.primary()?
+        };
+
+        trace!("unary: {expr}");
+        Ok(expr)
+    }
+
+    fn primary(&self) -> Result<Expr<'a>> {
+        let token = self.advance().ok_or(eyre!("No more tokens!"))?;
+
+        let expr = match token.token_type {
+            FALSE | TRUE | NIL | STRING | NUMBER | IDENTIFIER => Expr::Literal(&token.literal),
+            LEFT_PAREN => {
+                let expr = self.expression()?;
+
+                let token = self.advance().ok_or(eyre!("No more tokens!"))?;
+
+                if token.token_type == RIGHT_PAREN {
+                    Expr::Grouping(Box::new(expr))
+                } else {
+                    return Err(eyre!(format!(
+                        "Line: {} Col: {} | Expected ')' after expression, but got {}",
+                        token.line, token.column, token.lexeme
+                    )));
+                }
             }
-        }
-        _ => Err(eyre!(
-            "Line: {} Col: {} | Failed to parse literal from {}",
-            token.line,
-            token.column,
-            token.lexeme
-        )),
+            _ => {
+                return Err(eyre!(
+                    "Line: {} Col: {} | Failed to parse literal from {:?} '{}'",
+                    token.line,
+                    token.column,
+                    token.token_type,
+                    token.lexeme
+                ));
+            }
+        };
+
+        trace!("primary: {expr}");
+        Ok(expr)
     }
-}
 
-fn match_current(types: &[TokenType], tokens: &Vec<Token>, current: usize) -> bool {
-    trace!("Matching {types:?} against token [idx: {current}]");
+    fn advance(&self) -> Option<&'a Token> {
+        self.tokens.borrow_mut().next()
+    }
 
-    tokens.get(current).map_or(false, |t| {
-        types.iter().any(|token_type| t.token_type == *token_type)
-    })
-}
-
-fn match_next(types: &[TokenType], tokens: &Vec<Token>, current: usize) -> bool {
-    match_current(types, tokens, current + 1)
+    fn match_next(&self, types: &[TokenType]) -> bool {
+        self.tokens.borrow_mut().peek_nth(0).map_or(false, |t| {
+            types.iter().any(|token_type| t.token_type == *token_type)
+        })
+    }
 }
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use crate::scanner::Scanner;
 
-    use super::parse;
 
     #[test]
     fn parses_a_simple_expression() {
         let source = "5 + 6";
         let mut scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens().unwrap();
-        let expr = parse(&tokens).unwrap();
+        let parser = Parser::new(&tokens);
+        let expr = parser.parse().unwrap();
 
         assert_eq!(format!("{}", expr), "(+ 5 6)");
     }
@@ -208,7 +188,8 @@ mod test {
         let source = "12 + 14 + 23 + 18";
         let mut scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens().unwrap();
-        let expr = parse(&tokens).unwrap();
+        let parser = Parser::new(&tokens);
+        let expr = parser.parse().unwrap();
 
         assert_eq!(format!("{}", expr), "(+ (+ (+ 12 14) 23) 18)");
     }
@@ -226,7 +207,8 @@ mod test {
         for (source, expected) in test_cases {
             let mut scanner = Scanner::new(source);
             let tokens = scanner.scan_tokens().unwrap();
-            let expr = parse(&tokens).unwrap();
+            let parser = Parser::new(&tokens);
+            let expr = parser.parse().unwrap();
 
             assert_eq!(format!("{}", expr), expected);
         }
@@ -237,7 +219,8 @@ mod test {
         let source = "12 * (14 + 23) / 10";
         let mut scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens().unwrap();
-        let expr = parse(&tokens).unwrap();
+        let parser = Parser::new(&tokens);
+        let expr = parser.parse().unwrap();
 
         assert_eq!(format!("{}", expr), "(/ (* 12 (group (+ 14 23))) 10)");
     }
@@ -249,7 +232,8 @@ mod test {
         for (source, expected) in test_cases {
             let mut scanner = Scanner::new(source);
             let tokens = scanner.scan_tokens().unwrap();
-            let expr = parse(&tokens).unwrap();
+            let parser = Parser::new(&tokens);
+            let expr = parser.parse().unwrap();
 
             assert_eq!(format!("{}", expr), expected);
         }

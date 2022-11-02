@@ -63,7 +63,8 @@ fn run_prompt() -> Result<()> {
 fn run(program: String) -> Result<()> {
     let mut scanner = scanner::Scanner::new(&program);
     let tokens = scanner.scan_tokens()?;
-    let expression = parser::parse(&tokens)?;
+    let parser = parser::Parser::new(&tokens);
+    let expression = parser.parse()?;
 
     println!("{expression}");
 
