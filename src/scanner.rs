@@ -206,7 +206,7 @@ impl<'a> Scanner<'a> {
 
         Token::new(
             t,
-            String::from_utf8(lexeme.into()).unwrap(),
+            lexeme.into(),
             Literal::Null,
             self.line,
             self.start - self.column_offset,
