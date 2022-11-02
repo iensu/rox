@@ -2,6 +2,7 @@ use std::io::Write;
 use std::{env, fs, io};
 
 use eyre::Result;
+use log::error;
 
 mod expression;
 mod keywords;
@@ -70,5 +71,5 @@ fn run(program: String) -> Result<()> {
 }
 
 fn report(err: eyre::Report) {
-    eprintln!("{:?}", err);
+    error!("{:?}", err);
 }
