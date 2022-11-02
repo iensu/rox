@@ -78,6 +78,7 @@ impl TokenType {
 #[derive(Debug, PartialEq)]
 pub enum Literal {
     Null,
+    Bool(bool),
     Number(f64),
     String(String),
     Identifier(String),
@@ -275,7 +276,12 @@ impl<'a> Scanner<'a> {
                 let lexeme = &self.source[self.start..self.current];
 
                 let (token_type, literal) = if let Some(keyword) = TokenType::keyword(lexeme) {
-                    (keyword, Literal::Keyword)
+                    match keyword {
+                        TRUE => (keyword, Literal::Bool(true)),
+                        FALSE => (keyword, Literal::Bool(false)),
+                        NIL => (keyword, Literal::Null),
+                        _ => (keyword, Literal::Keyword),
+                    }
                 } else {
                     (IDENTIFIER, Literal::Identifier(lexeme.into()))
                 };
@@ -626,27 +632,27 @@ string"
     #[test]
     fn keywords_are_parsed_correctly() {
         let test_cases = vec![
-            ("and", AND, 0, 3),
-            ("class", CLASS, 0, 5),
-            ("else", ELSE, 0, 4),
-            ("false", FALSE, 0, 5),
-            ("fun", FUN, 0, 3),
-            ("for", FOR, 0, 3),
-            ("if", IF, 0, 2),
-            ("nil", NIL, 0, 3),
-            ("or", OR, 0, 2),
-            ("print", PRINT, 0, 5),
-            ("return", RETURN, 0, 6),
-            ("super", SUPER, 0, 5),
-            ("this", THIS, 0, 4),
-            ("true", TRUE, 0, 4),
-            ("var", VAR, 0, 3),
-            ("while", WHILE, 0, 5),
+            ("and", AND, L::Keyword, 0, 3),
+            ("class", CLASS, L::Keyword, 0, 5),
+            ("else", ELSE, L::Keyword, 0, 4),
+            ("false", FALSE, L::Bool(false), 0, 5),
+            ("fun", FUN, L::Keyword, 0, 3),
+            ("for", FOR, L::Keyword, 0, 3),
+            ("if", IF, L::Keyword, 0, 2),
+            ("nil", NIL, L::Null, 0, 3),
+            ("or", OR, L::Keyword, 0, 2),
+            ("print", PRINT, L::Keyword, 0, 5),
+            ("return", RETURN, L::Keyword, 0, 6),
+            ("super", SUPER, L::Keyword, 0, 5),
+            ("this", THIS, L::Keyword, 0, 4),
+            ("true", TRUE, L::Bool(true), 0, 4),
+            ("var", VAR, L::Keyword, 0, 3),
+            ("while", WHILE, L::Keyword, 0, 5),
         ];
 
-        for (source, keyword, start, end) in test_cases {
+        for (source, keyword, literal, start, end) in test_cases {
             let expected = vec![
-                Token::new(keyword, source.into(), L::Keyword, 1, start),
+                Token::new(keyword, source.into(), literal, 1, start),
                 Token::new(EOF, "".into(), L::Null, 1, end),
             ];
             let mut scanner = Scanner::new(source);

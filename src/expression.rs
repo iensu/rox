@@ -1,13 +1,14 @@
 use crate::token;
 
-pub enum Expr {
-    Literal(Box<token::Token>),
-    Unary(Box<token::Token>, Box<Expr>),
-    Binary(Box<Expr>, Box<token::Token>, Box<Expr>),
-    Grouping(Box<Expr>),
+#[derive(PartialEq, Debug)]
+pub enum Expr<'a> {
+    Literal(&'a token::Token),
+    Unary(&'a token::Token, Box<Expr<'a>>),
+    Binary(Box<Expr<'a>>, &'a token::Token, Box<Expr<'a>>),
+    Grouping(Box<Expr<'a>>),
 }
 
-impl std::fmt::Display for Expr {
+impl<'a> std::fmt::Display for Expr<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Expr::Literal(t) => write!(f, "{}", t.lexeme),
@@ -25,25 +26,34 @@ mod test {
     use crate::token::Token;
     use crate::token::TokenType::{self, *};
 
-    fn t(tt: TokenType, lexeme: &str) -> Box<Token> {
+    fn t(tt: TokenType, lexeme: &str) -> Token {
         use crate::token::Literal as L;
 
-        Box::new(Token::new(tt, lexeme.into(), L::Null, 0, 0))
+        Token::new(tt, lexeme.into(), L::Null, 0, 0)
     }
 
     #[test]
     fn displays_ok() {
+        let forty_two = t(NUMBER, "42");
+        let star = t(STAR, "*");
+        let minus = t(MINUS, "-");
+        let ten = t(NUMBER, "10");
+        let plus = t(PLUS, "+");
+        let hundred = t(NUMBER, "100");
+        let slash = t(SLASH, "/");
+        let twelve = t(NUMBER, "12");
+
         let expr: Expr = Binary(
             Box::new(Binary(
-                Box::new(Literal(t(NUMBER, "42"))),
-                t(STAR, "*"),
-                Box::new(Unary(t(MINUS, "-"), Box::new(Literal(t(NUMBER, "10"))))),
+                Box::new(Literal(&forty_two)),
+                &star,
+                Box::new(Unary(&minus, Box::new(Literal(&ten)))),
             )),
-            t(PLUS, "+"),
+            &plus,
             Box::new(Binary(
-                Box::new(Literal(t(NUMBER, "100"))),
-                t(SLASH, "/"),
-                Box::new(Literal(t(NUMBER, "12"))),
+                Box::new(Literal(&hundred)),
+                &slash,
+                Box::new(Literal(&twelve)),
             )),
         );
 
