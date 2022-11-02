@@ -106,7 +106,7 @@ fn primary<'a>(tokens: &'a Vec<Token>, start_index: usize) -> Result<(Expr, usiz
     let token = tokens.get(start_index).unwrap();
     let mut current = start_index + 1;
     match token.token_type {
-        FALSE | TRUE | NIL | STRING | NUMBER => {
+        FALSE | TRUE | NIL | STRING | NUMBER | IDENTIFIER => {
             trace!(
                 "  Resolved literal {:?} [idx: {start_index}]",
                 token.literal
@@ -172,6 +172,25 @@ mod test {
     }
 
     #[test]
+    fn factors_and_terms_has_the_correct_presedence() {
+        let test_cases = vec![
+            ("1 + 2 * 3", "(+ 1 (* 2 3))"),
+            ("2 * 3 + 1", "(+ (* 2 3) 1)"),
+            ("5 - 4 / 3", "(- 5 (/ 4 3))"),
+            ("5 / 4 - 3", "(- (/ 5 4) 3)"),
+            ("5 + 4 * 3 - 2 / 1", "(- (+ 5 (* 4 3)) (/ 2 1))"),
+        ];
+
+        for (source, expected) in test_cases {
+            let mut scanner = Scanner::new(source);
+            let tokens = scanner.scan_tokens().unwrap();
+            let expr = parse(&tokens).unwrap();
+
+            assert_eq!(format!("{}", expr), expected);
+        }
+    }
+
+    #[test]
     fn parses_grouped_expressions() {
         let source = "12 * (14 + 23) / 10";
         let mut scanner = Scanner::new(source);
@@ -179,5 +198,18 @@ mod test {
         let expr = parse(&tokens).unwrap();
 
         assert_eq!(format!("{}", expr), "(/ (* 12 (group (+ 14 23))) 10)");
+    }
+
+    #[test]
+    fn parses_unary_expressions_correctly() {
+        let test_cases = vec![("-1", "-1"), ("!x", "!x")];
+
+        for (source, expected) in test_cases {
+            let mut scanner = Scanner::new(source);
+            let tokens = scanner.scan_tokens().unwrap();
+            let expr = parse(&tokens).unwrap();
+
+            assert_eq!(format!("{}", expr), expected);
+        }
     }
 }
