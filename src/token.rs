@@ -1,7 +1,3 @@
-use std::str::Chars;
-
-use eyre::{eyre, Result};
-
 #[allow(non_camel_case_types)]
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum TokenType {
