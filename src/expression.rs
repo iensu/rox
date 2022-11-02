@@ -35,6 +35,8 @@ mod test {
     use crate::token::Token;
     use crate::token::TokenType::{self, *};
 
+    use test_log::test;
+
     fn t(tt: TokenType, lexeme: &str) -> Token {
         Token::new(tt, lexeme.into(), L::Null, 0, 0)
     }

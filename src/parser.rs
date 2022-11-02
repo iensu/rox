@@ -171,6 +171,7 @@ mod test {
     use super::*;
     use crate::scanner::Scanner;
 
+    use test_log::test;
 
     #[test]
     fn parses_a_simple_expression() {

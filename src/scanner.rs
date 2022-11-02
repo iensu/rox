@@ -230,11 +230,12 @@ impl<'a> Scanner<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::keywords as kw;
-
     use super::Literal as L;
     use super::TokenType::*;
     use super::*;
+    use crate::keywords as kw;
+
+    use test_log::test;
 
     #[test]
     fn tokens_are_parsed_correctly() {
