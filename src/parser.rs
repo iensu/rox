@@ -114,7 +114,9 @@ impl Parser {
         let token = tokens.get(start_index).unwrap();
         let mut current = start_index + 1;
         match token.token_type {
-            FALSE | TRUE | NIL | STRING | NUMBER => Ok((Expr::Literal(token), start_index)),
+            FALSE | TRUE | NIL | STRING | NUMBER => {
+                Ok((Expr::Literal(&token.literal), start_index))
+            }
             LEFT_PAREN => {
                 let (expr, idx) = self.expression(tokens, current)?;
                 current = idx + 1;

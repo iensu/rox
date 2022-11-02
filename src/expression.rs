@@ -2,7 +2,7 @@ use crate::token;
 
 #[derive(PartialEq, Debug)]
 pub enum Expr<'a> {
-    Literal(&'a token::Token),
+    Literal(&'a token::Literal),
     Unary(&'a token::Token, Box<Expr<'a>>),
     Binary(Box<Expr<'a>>, &'a token::Token, Box<Expr<'a>>),
     Grouping(Box<Expr<'a>>),
@@ -10,8 +10,16 @@ pub enum Expr<'a> {
 
 impl<'a> std::fmt::Display for Expr<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use token::Literal::*;
         match self {
-            Expr::Literal(t) => write!(f, "{}", t.lexeme),
+            Expr::Literal(literal) => match literal {
+                Null => write!(f, "null"),
+                Bool(b) => write!(f, "{b}"),
+                Number(n) => write!(f, "{n}"),
+                String(s) => write!(f, "\"{s}\""),
+                Identifier(i) => write!(f, "{i}"),
+                Keyword(s) => write!(f, "{s}"),
+            },
             Expr::Unary(t, e) => write!(f, "{}{}", t.lexeme, e),
             Expr::Binary(l, op, r) => write!(f, "({} {} {})", op.lexeme, l, r),
             Expr::Grouping(e) => write!(f, "(group {})", e),
@@ -23,25 +31,24 @@ impl<'a> std::fmt::Display for Expr<'a> {
 mod test {
     use super::Expr::*;
     use super::*;
+    use crate::token::Literal as L;
     use crate::token::Token;
     use crate::token::TokenType::{self, *};
 
     fn t(tt: TokenType, lexeme: &str) -> Token {
-        use crate::token::Literal as L;
-
         Token::new(tt, lexeme.into(), L::Null, 0, 0)
     }
 
     #[test]
     fn displays_ok() {
-        let forty_two = t(NUMBER, "42");
+        let forty_two = L::Number(42.);
         let star = t(STAR, "*");
         let minus = t(MINUS, "-");
-        let ten = t(NUMBER, "10");
+        let ten = L::Number(10.);
         let plus = t(PLUS, "+");
-        let hundred = t(NUMBER, "100");
+        let hundred = L::Number(100.);
         let slash = t(SLASH, "/");
-        let twelve = t(NUMBER, "12");
+        let twelve = L::Number(12.);
 
         let expr: Expr = Binary(
             Box::new(Binary(

@@ -1,0 +1,16 @@
+pub static AND: &'static str = "and";
+pub static CLASS: &'static str = "class";
+pub static ELSE: &'static str = "else";
+pub static FALSE: &'static str = "false";
+pub static FOR: &'static str = "for";
+pub static FUN: &'static str = "fun";
+pub static IF: &'static str = "if";
+pub static NIL: &'static str = "nil";
+pub static OR: &'static str = "or";
+pub static PRINT: &'static str = "print";
+pub static RETURN: &'static str = "return";
+pub static SUPER: &'static str = "super";
+pub static THIS: &'static str = "this";
+pub static TRUE: &'static str = "true";
+pub static VAR: &'static str = "var";
+pub static WHILE: &'static str = "while";

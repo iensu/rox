@@ -4,6 +4,7 @@ use std::{env, fs, io};
 use eyre::Result;
 
 mod expression;
+mod keywords;
 mod parser;
 mod token;
 
@@ -58,10 +59,10 @@ fn run_prompt() -> Result<()> {
 fn run(program: String) -> Result<()> {
     let mut scanner = token::Scanner::new(&program);
     let tokens = scanner.scan_tokens()?;
+    let parser = parser::Parser::new();
+    let expression = parser.parse(&tokens)?;
 
-    for t in tokens {
-        println!("{t:?}");
-    }
+    println!("{expression}");
 
     Ok(())
 }

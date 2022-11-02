@@ -52,24 +52,26 @@ pub enum TokenType {
 }
 
 impl TokenType {
-    pub fn keyword(x: &str) -> Option<TokenType> {
+    pub fn keyword(x: &str) -> Option<(TokenType, &'static str)> {
+        use crate::keywords::*;
+
         match x {
-            "and" => Some(Self::AND),
-            "class" => Some(Self::CLASS),
-            "else" => Some(Self::ELSE),
-            "false" => Some(Self::FALSE),
-            "fun" => Some(Self::FUN),
-            "for" => Some(Self::FOR),
-            "if" => Some(Self::IF),
-            "nil" => Some(Self::NIL),
-            "or" => Some(Self::OR),
-            "print" => Some(Self::PRINT),
-            "return" => Some(Self::RETURN),
-            "super" => Some(Self::SUPER),
-            "this" => Some(Self::THIS),
-            "true" => Some(Self::TRUE),
-            "var" => Some(Self::VAR),
-            "while" => Some(Self::WHILE),
+            "and" => Some((Self::AND, AND)),
+            "class" => Some((Self::CLASS, CLASS)),
+            "else" => Some((Self::ELSE, ELSE)),
+            "false" => Some((Self::FALSE, FALSE)),
+            "fun" => Some((Self::FUN, FUN)),
+            "for" => Some((Self::FOR, FOR)),
+            "if" => Some((Self::IF, IF)),
+            "nil" => Some((Self::NIL, NIL)),
+            "or" => Some((Self::OR, OR)),
+            "print" => Some((Self::PRINT, PRINT)),
+            "return" => Some((Self::RETURN, RETURN)),
+            "super" => Some((Self::SUPER, SUPER)),
+            "this" => Some((Self::THIS, THIS)),
+            "true" => Some((Self::TRUE, TRUE)),
+            "var" => Some((Self::VAR, VAR)),
+            "while" => Some((Self::WHILE, WHILE)),
             _ => None,
         }
     }
@@ -82,7 +84,7 @@ pub enum Literal {
     Number(f64),
     String(String),
     Identifier(String),
-    Keyword,
+    Keyword(&'static str),
 }
 
 #[derive(Debug, PartialEq)]
@@ -275,16 +277,17 @@ impl<'a> Scanner<'a> {
                 }
                 let lexeme = &self.source[self.start..self.current];
 
-                let (token_type, literal) = if let Some(keyword) = TokenType::keyword(lexeme) {
-                    match keyword {
-                        TRUE => (keyword, Literal::Bool(true)),
-                        FALSE => (keyword, Literal::Bool(false)),
-                        NIL => (keyword, Literal::Null),
-                        _ => (keyword, Literal::Keyword),
-                    }
-                } else {
-                    (IDENTIFIER, Literal::Identifier(lexeme.into()))
-                };
+                let (token_type, literal) =
+                    if let Some((keyword, string)) = TokenType::keyword(lexeme) {
+                        match keyword {
+                            TRUE => (keyword, Literal::Bool(true)),
+                            FALSE => (keyword, Literal::Bool(false)),
+                            NIL => (keyword, Literal::Null),
+                            _ => (keyword, Literal::Keyword(string)),
+                        }
+                    } else {
+                        (IDENTIFIER, Literal::Identifier(lexeme.into()))
+                    };
 
                 Ok(Some(Token::new(
                     token_type,
@@ -337,6 +340,8 @@ impl<'a> Scanner<'a> {
 
 #[cfg(test)]
 mod test {
+    use crate::keywords as kw;
+
     use super::Literal as L;
     use super::TokenType::*;
     use super::*;
@@ -632,22 +637,22 @@ string"
     #[test]
     fn keywords_are_parsed_correctly() {
         let test_cases = vec![
-            ("and", AND, L::Keyword, 0, 3),
-            ("class", CLASS, L::Keyword, 0, 5),
-            ("else", ELSE, L::Keyword, 0, 4),
+            ("and", AND, L::Keyword(kw::AND), 0, 3),
+            ("class", CLASS, L::Keyword(kw::CLASS), 0, 5),
+            ("else", ELSE, L::Keyword(kw::ELSE), 0, 4),
             ("false", FALSE, L::Bool(false), 0, 5),
-            ("fun", FUN, L::Keyword, 0, 3),
-            ("for", FOR, L::Keyword, 0, 3),
-            ("if", IF, L::Keyword, 0, 2),
+            ("fun", FUN, L::Keyword(kw::FUN), 0, 3),
+            ("for", FOR, L::Keyword(kw::FOR), 0, 3),
+            ("if", IF, L::Keyword(kw::IF), 0, 2),
             ("nil", NIL, L::Null, 0, 3),
-            ("or", OR, L::Keyword, 0, 2),
-            ("print", PRINT, L::Keyword, 0, 5),
-            ("return", RETURN, L::Keyword, 0, 6),
-            ("super", SUPER, L::Keyword, 0, 5),
-            ("this", THIS, L::Keyword, 0, 4),
+            ("or", OR, L::Keyword(kw::OR), 0, 2),
+            ("print", PRINT, L::Keyword(kw::PRINT), 0, 5),
+            ("return", RETURN, L::Keyword(kw::RETURN), 0, 6),
+            ("super", SUPER, L::Keyword(kw::SUPER), 0, 5),
+            ("this", THIS, L::Keyword(kw::THIS), 0, 4),
             ("true", TRUE, L::Bool(true), 0, 4),
-            ("var", VAR, L::Keyword, 0, 3),
-            ("while", WHILE, L::Keyword, 0, 5),
+            ("var", VAR, L::Keyword(kw::VAR), 0, 3),
+            ("while", WHILE, L::Keyword(kw::WHILE), 0, 5),
         ];
 
         for (source, keyword, literal, start, end) in test_cases {
@@ -671,7 +676,7 @@ string"
         assert_eq!(
             tokens,
             vec![
-                Token::new(VAR, "var".into(), L::Keyword, 1, 0),
+                Token::new(VAR, "var".into(), L::Keyword(kw::VAR), 1, 0),
                 Token::new(IDENTIFIER, "x".into(), L::Identifier("x".into()), 1, 4),
                 Token::new(EQUAL, "=".into(), L::Null, 1, 6),
                 Token::new(NUMBER, "42".into(), L::Number(42.), 1, 8),
@@ -700,7 +705,7 @@ fun square(x) {
         let tokens = scanner.scan_tokens().unwrap();
 
         let expected = vec![
-            Token::new(FUN, "fun".into(), L::Keyword, 1, 0),
+            Token::new(FUN, "fun".into(), L::Keyword(kw::FUN), 1, 0),
             Token::new(
                 IDENTIFIER,
                 "square".into(),
@@ -712,7 +717,7 @@ fun square(x) {
             Token::new(IDENTIFIER, "x".into(), L::Identifier("x".into()), 1, 11),
             Token::new(RIGHT_PAREN, ")".into(), L::Null, 1, 12),
             Token::new(LEFT_BRACE, "{".into(), L::Null, 1, 14),
-            Token::new(RETURN, "return".into(), L::Keyword, 2, 2),
+            Token::new(RETURN, "return".into(), L::Keyword(kw::RETURN), 2, 2),
             Token::new(IDENTIFIER, "x".into(), L::Identifier("x".into()), 2, 9),
             Token::new(STAR, "*".into(), L::Null, 2, 11),
             Token::new(IDENTIFIER, "x".into(), L::Identifier("x".into()), 2, 13),
