@@ -9,6 +9,8 @@ mod parser;
 mod token;
 
 fn main() -> Result<()> {
+    env_logger::init();
+
     let mut args = env::args();
 
     if args.len() > 2 {
