@@ -155,10 +155,13 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
+    /// Returns the next token, consuming it from the token stream.
     fn advance(&self) -> Option<&'a Token> {
         self.tokens.borrow_mut().next()
     }
 
+    /// Returns `true` if the type of the next token in the token stream matches one
+    /// of the provided `types`. Does not consume the token it looks at.
     fn match_next(&self, types: &[TokenType]) -> bool {
         self.tokens.borrow_mut().peek_nth(0).map_or(false, |t| {
             types.iter().any(|token_type| t.token_type == *token_type)
