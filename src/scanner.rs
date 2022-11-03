@@ -2,7 +2,7 @@ use std::str::Chars;
 
 use eyre::{eyre, Result};
 
-use crate::token::{Literal, Token, TokenType};
+use crate::token::{Token, TokenType, Value};
 
 pub struct Scanner<'a> {
     start: usize,
@@ -41,7 +41,7 @@ impl<'a> Scanner<'a> {
         tokens.push(Token::new(
             TokenType::EOF,
             "".into(),
-            Literal::Null,
+            Value::Null,
             self.line,
             self.current - self.column_offset,
         ));
@@ -129,7 +129,7 @@ impl<'a> Scanner<'a> {
                 Ok(Some(Token::new(
                     STRING,
                     lexeme.into(),
-                    Literal::String(string.into()),
+                    Value::String(string.into()),
                     start_line,
                     column,
                 )))
@@ -151,7 +151,7 @@ impl<'a> Scanner<'a> {
                 Ok(Some(Token::new(
                     NUMBER,
                     lexeme.into(),
-                    Literal::Number(number),
+                    Value::Number(number),
                     self.line,
                     self.start - self.column_offset,
                 )))
@@ -170,13 +170,13 @@ impl<'a> Scanner<'a> {
                 let (token_type, literal) =
                     if let Some((keyword, string)) = TokenType::keyword(lexeme) {
                         match keyword {
-                            TRUE => (keyword, Literal::Bool(true)),
-                            FALSE => (keyword, Literal::Bool(false)),
-                            NIL => (keyword, Literal::Null),
-                            _ => (keyword, Literal::Keyword(string)),
+                            TRUE => (keyword, Value::Bool(true)),
+                            FALSE => (keyword, Value::Bool(false)),
+                            NIL => (keyword, Value::Null),
+                            _ => (keyword, Value::Keyword(string)),
                         }
                     } else {
-                        (IDENTIFIER, Literal::Identifier(lexeme.into()))
+                        (IDENTIFIER, Value::Identifier(lexeme.into()))
                     };
 
                 Ok(Some(Token::new(
@@ -207,7 +207,7 @@ impl<'a> Scanner<'a> {
         Token::new(
             t,
             lexeme.into(),
-            Literal::Null,
+            Value::Null,
             self.line,
             self.start - self.column_offset,
         )
@@ -230,8 +230,8 @@ impl<'a> Scanner<'a> {
 
 #[cfg(test)]
 mod test {
-    use super::Literal as L;
     use super::TokenType::*;
+    use super::Value as L;
     use super::*;
     use crate::keywords as kw;
 

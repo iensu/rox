@@ -74,7 +74,7 @@ impl TokenType {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum Literal {
+pub enum Value {
     Null,
     Bool(bool),
     Number(f64),
@@ -83,11 +83,24 @@ pub enum Literal {
     Keyword(&'static str),
 }
 
+impl std::fmt::Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Null => write!(f, "null"),
+            Value::Bool(b) => write!(f, "{b}"),
+            Value::Number(n) => write!(f, "{n}"),
+            Value::String(s) => write!(f, "{s}"),
+            Value::Identifier(s) => write!(f, "{s}"),
+            Value::Keyword(kw) => write!(f, "{kw}"),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
-    pub literal: Literal, // Here be monsters
+    pub literal: Value,
     pub line: usize,
     pub column: usize,
 }
@@ -96,7 +109,7 @@ impl Token {
     pub fn new(
         token_type: TokenType,
         lexeme: String,
-        literal: Literal,
+        literal: Value,
         line: usize,
         column: usize,
     ) -> Self {
