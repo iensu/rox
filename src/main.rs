@@ -2,7 +2,7 @@ use std::io::Write;
 use std::{env, fs, io};
 
 use eyre::Result;
-use log::error;
+use log::{debug, error};
 
 mod expression;
 mod keywords;
@@ -13,13 +13,13 @@ mod token;
 fn main() -> Result<()> {
     env_logger::init();
 
-    let mut args = env::args();
+    let args = env::args();
 
     if args.len() > 2 {
         eprintln!("Usage: rox [script]");
         panic!();
     } else if args.len() == 2 {
-        run_file(args.next().unwrap())?;
+        run_file(args.skip(1).next().unwrap())?;
     } else {
         run_prompt()?;
     }
@@ -28,6 +28,7 @@ fn main() -> Result<()> {
 }
 
 fn run_file(file_path: String) -> Result<()> {
+    debug!("Reading file: {file_path}");
     let program = fs::read_to_string(file_path).expect("Failed to read file");
     run(program)?;
 
