@@ -66,8 +66,9 @@ fn run(program: String) -> Result<()> {
     let tokens = scanner.scan_tokens()?;
     let parser = parser::Parser::new(&tokens);
     let expression = parser.parse()?;
+    let value = expression.evaluate()?;
 
-    println!("{expression}");
+    println!("{value}");
 
     Ok(())
 }
