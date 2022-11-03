@@ -155,6 +155,29 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
+    /// Synchronizes the token stream by consuming tokens until it hits a potential
+    /// statement boundary from which parsing can continue.
+    ///
+    /// This method can be used to continue parsing after a parsing error has been
+    /// encountered.
+    fn synchronize(&self) -> Result<()> {
+        let mut previous = self.advance().ok_or(eyre!("No more tokens!"))?;
+
+        while !self.match_next(&[EOF]) {
+            if previous.token_type == SEMICOLON {
+                return Ok(());
+            }
+            if self.match_next(&[CLASS, FOR, FUN, IF, PRINT, RETURN, VAR, WHILE]) {
+                return Ok(());
+            }
+
+            previous = self.advance().ok_or(eyre!("No more tokens!"))?;
+        }
+
+        // Hit the end of file
+        Ok(())
+    }
+
     /// Returns the next token, consuming it from the token stream.
     fn advance(&self) -> Option<&'a Token> {
         self.tokens.borrow_mut().next()
