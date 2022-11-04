@@ -1,6 +1,6 @@
 use std::str::Chars;
 
-use eyre::Result;
+use anyhow::Result;
 
 use crate::{
     error::ScanError,

@@ -9,7 +9,7 @@ use crate::{
     },
 };
 
-use eyre::Result;
+use anyhow::Result;
 use itertools::PeekNth;
 use log::{debug, trace};
 

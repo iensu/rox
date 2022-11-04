@@ -4,7 +4,7 @@ use crate::{
     token::{TokenType::*, Value},
 };
 
-use eyre::Result;
+use anyhow::Result;
 
 pub struct Interpreter {}
 

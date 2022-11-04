@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::{env, fs, io};
 
-use eyre::Result;
+use anyhow::Result;
 use interpreter::Interpreter;
 use log::debug;
 
