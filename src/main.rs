@@ -2,9 +2,11 @@ use std::io::Write;
 use std::{env, fs, io};
 
 use eyre::Result;
+use interpreter::Interpreter;
 use log::{debug, error};
 
 mod expression;
+mod interpreter;
 mod keywords;
 mod parser;
 mod scanner;
@@ -30,12 +32,13 @@ fn main() -> Result<()> {
 fn run_file(file_path: String) -> Result<()> {
     debug!("Reading file: {file_path}");
     let program = fs::read_to_string(file_path).expect("Failed to read file");
-    run(program)?;
+    run(program, &Interpreter::new())?;
 
     Ok(())
 }
 
 fn run_prompt() -> Result<()> {
+    let interpreter = Interpreter::new();
     let mut buffer = String::new();
 
     println!("Rox prompt, hit ctrl-d to quit.");
@@ -51,7 +54,7 @@ fn run_prompt() -> Result<()> {
         let input = buffer.to_string().trim_end().to_string();
 
         // Do not crash on error!
-        if let Err(err) = run(input) {
+        if let Err(err) = run(input, &interpreter) {
             report(err);
         }
 
@@ -61,12 +64,12 @@ fn run_prompt() -> Result<()> {
     Ok(())
 }
 
-fn run(program: String) -> Result<()> {
+fn run(program: String, interpreter: &Interpreter) -> Result<()> {
     let mut scanner = scanner::Scanner::new(&program);
     let tokens = scanner.scan_tokens()?;
     let parser = parser::Parser::new(&tokens);
     let expression = parser.parse()?;
-    let value = expression.evaluate()?;
+    let value = interpreter.interpret(&expression)?;
 
     println!("{value}");
 
