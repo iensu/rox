@@ -90,7 +90,7 @@ impl std::fmt::Display for Value {
             Value::Null => write!(f, "null"),
             Value::Bool(b) => write!(f, "{b}"),
             Value::Number(n) => write!(f, "{n}"),
-            Value::String(s) => write!(f, "{s}"),
+            Value::String(s) => write!(f, "\"{s}\""),
             Value::Identifier(s) => write!(f, "{s}"),
             Value::Keyword(kw) => write!(f, "{kw}"),
         }

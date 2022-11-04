@@ -288,7 +288,11 @@ mod test {
         let interpreter = Interpreter::new();
         let value = interpreter.interpret(&expression).unwrap();
 
-        assert_eq!(format!("{value}"), "foobar", "Failed to evaluate {source}");
+        assert_eq!(
+            format!("{value}"),
+            "\"foobar\"",
+            "Failed to evaluate {source}"
+        );
     }
 
     #[test]
