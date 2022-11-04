@@ -1,8 +1,11 @@
 use std::str::Chars;
 
-use eyre::{eyre, Result};
+use eyre::Result;
 
-use crate::token::{Token, TokenType, Value};
+use crate::{
+    error::ScanError,
+    token::{Token, TokenType, Value},
+};
 
 pub struct Scanner<'a> {
     start: usize,
@@ -66,7 +69,7 @@ impl<'a> Scanner<'a> {
             return Ok(None);
         }
 
-        let c = c.ok_or(eyre!("Could not get character!"))?;
+        let c = c.ok_or(ScanError::EOF)?;
 
         match c {
             '(' => Ok(Some(self.create_token(LEFT_PAREN))),
@@ -119,9 +122,10 @@ impl<'a> Scanner<'a> {
                             self.newline();
                         }
                     } else {
-                        return Err(eyre!(
-                            "Line {start_line} Col {column}: Unterminated string!"
-                        ));
+                        return Err(ScanError::UnterminatedString {
+                            pos: (start_line, column),
+                        }
+                        .into());
                     }
                 }
                 let lexeme = &self.source[self.start..self.current];
@@ -147,7 +151,11 @@ impl<'a> Scanner<'a> {
                 let lexeme = &self.source[self.start..self.current];
                 let number = lexeme
                     .parse::<f64>()
-                    .map_err(|_| eyre!("Failed to parse '{lexeme}' as f64"))?;
+                    .map_err(|_| ScanError::BadConversion {
+                        pos: (self.start, self.current),
+                        lexeme: lexeme.to_string(),
+                        target_type: "f64".to_string(),
+                    })?;
 
                 Ok(Some(Token::new(
                     NUMBER,
@@ -192,7 +200,11 @@ impl<'a> Scanner<'a> {
             _ => {
                 let line = self.line;
                 let col = self.start - self.column_offset;
-                return Err(eyre!("Line {line} Col {col}: Unexpected character '{c}'"));
+                return Err(ScanError::UnexpectedChar {
+                    pos: (line, col),
+                    c,
+                }
+                .into());
             }
         }
     }

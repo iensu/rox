@@ -1,9 +1,10 @@
 use crate::{
+    error::RuntimeError,
     expression::Expr,
     token::{TokenType::*, Value},
 };
 
-use eyre::{eyre, Result};
+use eyre::Result;
 
 pub struct Interpreter {}
 
@@ -28,13 +29,22 @@ impl Interpreter {
 
             Expr::Unary(t, e) if t.token_type == MINUS => match self.interpret(e)? {
                 Value::Number(n) => Ok(Value::Number(n * -1.)),
-                _ => Err(eyre!("The minus operator cannot be applied to {expr}")),
+                _ => Err(RuntimeError::UnaryOperatorError {
+                    op: t.lexeme.to_string(),
+                    pos: (t.line, t.column),
+                    right: e.to_string(),
+                }
+                .into()),
             },
             Expr::Unary(t, e) if t.token_type == BANG => {
                 let value = !self.is_truthy(&self.interpret(e)?);
                 Ok(Value::Bool(value))
             }
-            Expr::Unary(t, _) => Err(eyre!("Invalid unary token type: {t:?}")),
+            Expr::Unary(t, _) => Err(RuntimeError::UnknownOpError {
+                pos: (t.line, t.column),
+                op: t.lexeme.to_string(),
+            }
+            .into()),
 
             Expr::Binary(left, op, right)
                 if [
@@ -49,24 +59,43 @@ impl Interpreter {
                 ]
                 .contains(&op.token_type) =>
             {
-                let left = self.interpret(left)?;
-                let right = self.interpret(right)?;
-                let (x, y) = if let (Value::Number(l), Value::Number(r)) = (left, right) {
+                let (x, y) = if let (Value::Number(l), Value::Number(r)) =
+                    (self.interpret(left)?, self.interpret(right)?)
+                {
                     (l, r)
                 } else {
-                    return Err(eyre!("{} can only be applied to numbers", op.lexeme));
+                    return Err(RuntimeError::BinaryOperatorError {
+                        pos: (op.line, op.column),
+                        op: op.lexeme.to_string(),
+                        left: left.to_string(),
+                        right: right.to_string(),
+                    }
+                    .into());
                 };
 
                 match op.token_type {
                     STAR => Ok(Value::Number(x * y)),
                     MINUS => Ok(Value::Number(x - y)),
-                    SLASH => Ok(Value::Number(x / y)),
+                    SLASH => {
+                        if y != 0. {
+                            Ok(Value::Number(x / y))
+                        } else {
+                            Err(RuntimeError::DivisionByZero {
+                                pos: (op.line, op.column),
+                            }
+                            .into())
+                        }
+                    }
                     CARET => Ok(Value::Number(x.powf(y))),
                     GREATER => Ok(Value::Bool(x > y)),
                     GREATER_EQUAL => Ok(Value::Bool(x >= y)),
                     LESS => Ok(Value::Bool(x < y)),
                     LESS_EQUAL => Ok(Value::Bool(x <= y)),
-                    _ => unreachable!(),
+                    _ => Err(RuntimeError::UnknownOpError {
+                        pos: (op.line, op.column),
+                        op: op.lexeme.to_string(),
+                    }
+                    .into()),
                 }
             }
             Expr::Binary(left, op, right) if [BANG_EQUAL, EQUAL_EQUAL].contains(&op.token_type) => {
@@ -91,24 +120,23 @@ impl Interpreter {
                 }
             }
             Expr::Binary(left, op, right) if op.token_type == PLUS => {
-                let left = self.interpret(left)?;
-                let right = self.interpret(right)?;
-                match (left, right) {
+                match (self.interpret(left)?, self.interpret(right)?) {
                     (Value::Number(l), Value::Number(r)) => Ok(Value::Number(l + r)),
                     (Value::String(l), Value::String(r)) => Ok(Value::String(format!("{l}{r}"))),
-                    (Value::Number(_), _) => {
-                        Err(eyre!("Right-hand side must also evaluate to a number"))
+                    _ => Err(RuntimeError::BinaryOperatorError {
+                        pos: (op.line, op.column),
+                        op: op.lexeme.to_string(),
+                        left: left.to_string(),
+                        right: right.to_string(),
                     }
-                    (Value::String(_), _) => {
-                        Err(eyre!("Right-hand  side must also evaluate to a string"))
-                    }
-                    _ => Err(eyre!(
-                        "{} can only be applied to numbers or strings",
-                        op.lexeme
-                    )),
+                    .into()),
                 }
             }
-            Expr::Binary(_, op, _) => Err(eyre!("Invalid binary token type: {op:?}")),
+            Expr::Binary(_, op, _) => Err(RuntimeError::UnknownOpError {
+                pos: (op.line, op.column),
+                op: op.lexeme.to_string(),
+            }
+            .into()),
         }
     }
 
@@ -194,9 +222,13 @@ mod test {
             let expression = parser.parse().unwrap();
             let interpreter = Interpreter::new();
 
-            match interpreter.interpret(&expression) {
-                Err(e) => assert!(format!("{}", e).contains("minus operator cannot be applied")),
-                Ok(_) => assert!(false, "Cannot apply minus to {source}"),
+            let err = interpreter
+                .interpret(&expression)
+                .expect_err("{source} should fail");
+
+            match err.downcast::<RuntimeError>().unwrap() {
+                RuntimeError::UnaryOperatorError { .. } => assert!(true),
+                e => assert!(false, "Cannot apply minus to {source}: {e:?}"),
             }
         }
     }

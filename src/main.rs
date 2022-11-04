@@ -3,8 +3,9 @@ use std::{env, fs, io};
 
 use eyre::Result;
 use interpreter::Interpreter;
-use log::{debug, error};
+use log::debug;
 
+mod error;
 mod expression;
 mod interpreter;
 mod keywords;
@@ -55,7 +56,7 @@ fn run_prompt() -> Result<()> {
 
         // Do not crash on error!
         if let Err(err) = run(input, &interpreter) {
-            report(err);
+            eprintln!("ERROR: {}", err)
         }
 
         buffer.clear();
@@ -74,8 +75,4 @@ fn run(program: String, interpreter: &Interpreter) -> Result<()> {
     println!("{value}");
 
     Ok(())
-}
-
-fn report(err: eyre::Report) {
-    error!("{:?}", err);
 }

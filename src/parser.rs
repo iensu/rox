@@ -1,6 +1,7 @@
 use std::{cell::RefCell, slice::Iter};
 
 use crate::{
+    error::ParseError,
     expression::Expr,
     token::{
         Token,
@@ -8,7 +9,7 @@ use crate::{
     },
 };
 
-use eyre::{eyre, Result};
+use eyre::Result;
 use itertools::PeekNth;
 use log::{debug, trace};
 
@@ -42,7 +43,7 @@ impl<'a> Parser<'a> {
 
         while self.match_next(&[BANG_EQUAL, EQUAL_EQUAL]) {
             debug!("equality left: {expr:?}");
-            let operator = self.advance().ok_or(eyre!("No more tokens!"))?;
+            let operator = self.advance().ok_or(ParseError::EOF)?;
             debug!("equality operator: {operator:?}");
             let right = self.term()?;
             debug!("equality right: {right:?}");
@@ -59,7 +60,7 @@ impl<'a> Parser<'a> {
 
         while self.match_next(&[GREATER, GREATER_EQUAL, LESS, LESS_EQUAL]) {
             debug!("comparison left: {expr:?}");
-            let operator = self.advance().ok_or(eyre!("No more tokens!"))?;
+            let operator = self.advance().ok_or(ParseError::EOF)?;
             debug!("comparison operator: {operator:?}");
             let right = self.term()?;
             debug!("comparison right: {right:?}");
@@ -76,7 +77,7 @@ impl<'a> Parser<'a> {
 
         while self.match_next(&[PLUS, MINUS]) {
             debug!("term left: {expr:?}");
-            let operator = self.advance().ok_or(eyre!("No more tokens!"))?;
+            let operator = self.advance().ok_or(ParseError::EOF)?;
             debug!("term operator: {operator:?}");
             let right = self.factor()?;
             debug!("term right: {right:?}");
@@ -93,7 +94,7 @@ impl<'a> Parser<'a> {
 
         while self.match_next(&[STAR, SLASH, CARET]) {
             debug!("factor left: {expr:?}");
-            let operator = self.advance().ok_or(eyre!("No more tokens!"))?;
+            let operator = self.advance().ok_or(ParseError::EOF)?;
             debug!("factor operator: {operator:?}");
             let right = self.unary()?;
             debug!("factor right: {right:?}");
@@ -107,7 +108,7 @@ impl<'a> Parser<'a> {
 
     fn unary(&self) -> Result<Expr<'a>> {
         let expr = if self.match_next(&[BANG, MINUS]) {
-            let operator = self.advance().ok_or(eyre!("No more tokens!"))?;
+            let operator = self.advance().ok_or(ParseError::EOF)?;
             debug!("unary operator: {operator:?}");
             let right = self.unary()?;
             debug!("unary right: {right:?}");
@@ -122,32 +123,33 @@ impl<'a> Parser<'a> {
     }
 
     fn primary(&self) -> Result<Expr<'a>> {
-        let token = self.advance().ok_or(eyre!("No more tokens!"))?;
+        let token = self.advance().ok_or(ParseError::EOF)?;
 
         let expr = match token.token_type {
             FALSE | TRUE | NIL | STRING | NUMBER | IDENTIFIER => Expr::Literal(&token.literal),
             LEFT_PAREN => {
                 let expr = self.expression()?;
 
-                let token = self.advance().ok_or(eyre!("No more tokens!"))?;
+                let token = self.advance().ok_or(ParseError::EOF)?;
 
                 if token.token_type == RIGHT_PAREN {
                     Expr::Grouping(Box::new(expr))
                 } else {
-                    return Err(eyre!(format!(
-                        "Line: {} Col: {} | Expected ')' after expression, but got {}",
-                        token.line, token.column, token.lexeme
-                    )));
+                    return Err(ParseError::UnbalancedParen {
+                        pos: (token.line, token.column),
+                        lexeme: token.lexeme.to_string(),
+                    }
+                    .into());
                 }
             }
+            EOF => return Err(ParseError::EOF.into()),
             _ => {
-                return Err(eyre!(
-                    "Line: {} Col: {} | Failed to parse literal from {:?} '{}'",
-                    token.line,
-                    token.column,
-                    token.token_type,
-                    token.lexeme
-                ));
+                return Err(ParseError::BadLiteral {
+                    pos: (token.line, token.column),
+                    lexeme: token.lexeme.to_string(),
+                    token_type: token.token_type,
+                }
+                .into());
             }
         };
 
@@ -161,7 +163,7 @@ impl<'a> Parser<'a> {
     /// This method can be used to continue parsing after a parsing error has been
     /// encountered.
     fn synchronize(&self) -> Result<()> {
-        let mut previous = self.advance().ok_or(eyre!("No more tokens!"))?;
+        let mut previous = self.advance().ok_or(ParseError::EOF)?;
 
         while !self.match_next(&[EOF]) {
             if previous.token_type == SEMICOLON {
@@ -171,7 +173,7 @@ impl<'a> Parser<'a> {
                 return Ok(());
             }
 
-            previous = self.advance().ok_or(eyre!("No more tokens!"))?;
+            previous = self.advance().ok_or(ParseError::EOF)?;
         }
 
         // Hit the end of file
