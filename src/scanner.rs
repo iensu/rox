@@ -73,6 +73,7 @@ impl<'a> Scanner<'a> {
             ')' => Ok(Some(self.create_token(RIGHT_PAREN))),
             '{' => Ok(Some(self.create_token(LEFT_BRACE))),
             '}' => Ok(Some(self.create_token(RIGHT_BRACE))),
+            '^' => Ok(Some(self.create_token(CARET))),
             ',' => Ok(Some(self.create_token(COMMA))),
             '.' => Ok(Some(self.create_token(DOT))),
             '-' => Ok(Some(self.create_token(MINUS))),

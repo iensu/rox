@@ -6,6 +6,7 @@ pub enum TokenType {
     RIGHT_PAREN,
     LEFT_BRACE,
     RIGHT_BRACE,
+    CARET,
     COMMA,
     DOT,
     MINUS,

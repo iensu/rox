@@ -37,8 +37,17 @@ impl Interpreter {
             Expr::Unary(t, _) => Err(eyre!("Invalid unary token type: {t:?}")),
 
             Expr::Binary(left, op, right)
-                if [MINUS, STAR, SLASH, GREATER, GREATER_EQUAL, LESS, LESS_EQUAL]
-                    .contains(&op.token_type) =>
+                if [
+                    MINUS,
+                    STAR,
+                    SLASH,
+                    CARET,
+                    GREATER,
+                    GREATER_EQUAL,
+                    LESS,
+                    LESS_EQUAL,
+                ]
+                .contains(&op.token_type) =>
             {
                 let left = self.interpret(left)?;
                 let right = self.interpret(right)?;
@@ -52,6 +61,7 @@ impl Interpreter {
                     STAR => Ok(Value::Number(x * y)),
                     MINUS => Ok(Value::Number(x - y)),
                     SLASH => Ok(Value::Number(x / y)),
+                    CARET => Ok(Value::Number(x.powf(y))),
                     GREATER => Ok(Value::Bool(x > y)),
                     GREATER_EQUAL => Ok(Value::Bool(x >= y)),
                     LESS => Ok(Value::Bool(x < y)),
@@ -250,6 +260,7 @@ mod test {
             ("1 - 1", 0.),
             ("2 * 2", 4.),
             ("2 / 2", 1.),
+            ("2 ^ 2", 4.),
             ("2 + 4 * 10", 42.),
             ("(2 + 4) * 10", 60.),
         ];

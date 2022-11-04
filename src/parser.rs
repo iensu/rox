@@ -91,7 +91,7 @@ impl<'a> Parser<'a> {
     fn factor(&self) -> Result<Expr<'a>> {
         let mut expr = self.unary()?;
 
-        while self.match_next(&[STAR, SLASH]) {
+        while self.match_next(&[STAR, SLASH, CARET]) {
             debug!("factor left: {expr:?}");
             let operator = self.advance().ok_or(eyre!("No more tokens!"))?;
             debug!("factor operator: {operator:?}");
@@ -228,6 +228,7 @@ mod test {
             ("2 * 3 + 1", "(+ (* 2 3) 1)"),
             ("5 - 4 / 3", "(- 5 (/ 4 3))"),
             ("5 / 4 - 3", "(- (/ 5 4) 3)"),
+            ("5 + 4 ^ 2", "(+ 5 (^ 4 2))"),
             ("5 + 4 * 3 - 2 / 1", "(- (+ 5 (* 4 3)) (/ 2 1))"),
         ];
 
