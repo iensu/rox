@@ -189,7 +189,7 @@ impl<'a> Interpreter<'a> {
             Some(buffer) => {
                 let mut out = buffer.borrow_mut();
                 out.push_str(text);
-                out.push_str("\n");
+                out.push('\n');
             }
             None => println!("{}", text),
         }

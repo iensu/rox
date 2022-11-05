@@ -16,15 +16,15 @@ mod token;
 fn main() -> Result<()> {
     env_logger::init();
 
-    let args = env::args();
+    let mut args = env::args();
 
-    if args.len() > 2 {
-        eprintln!("Usage: rox [script]");
-        panic!();
-    } else if args.len() == 2 {
-        run_file(args.skip(1).next().unwrap())?;
-    } else {
-        run_prompt()?;
+    match args.len() {
+        n if n == 2 => run_file(args.nth(1).unwrap())?,
+        n if n == 1 => run_prompt()?,
+        _ => {
+            eprintln!("Usage: rox [script]");
+            panic!();
+        }
     }
 
     Ok(())

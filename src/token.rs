@@ -1,5 +1,5 @@
-#[allow(non_camel_case_types)]
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[allow(non_camel_case_types, clippy::upper_case_acronyms)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum TokenType {
     // Single character tokens
     LEFT_PAREN,

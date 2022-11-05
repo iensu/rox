@@ -69,7 +69,7 @@ impl<'a> Scanner<'a> {
             return Ok(None);
         }
 
-        let c = c.ok_or(ScanError::EOF)?;
+        let c = c.ok_or(ScanError::Eof)?;
 
         match c {
             '(' => Ok(Some(self.create_token(LEFT_PAREN))),
@@ -200,11 +200,11 @@ impl<'a> Scanner<'a> {
             _ => {
                 let line = self.line;
                 let col = self.start - self.column_offset;
-                return Err(ScanError::UnexpectedChar {
+                Err(ScanError::UnexpectedChar {
                     pos: (line, col),
                     c,
                 }
-                .into());
+                .into())
             }
         }
     }
@@ -278,7 +278,7 @@ mod test {
             let mut scanner = Scanner::new(source);
             let tokens = scanner
                 .scan_tokens()
-                .expect(&format!("Failed to scan token '{source}'"));
+                .unwrap_or_else(|_| panic!("Failed to scan token '{source}'"));
             let expected = vec![
                 Token::new(token_type, source.to_string(), L::Null, 1, 0),
                 Token::new(EOF, "".into(), L::Null, 1, source.len()),
@@ -305,7 +305,7 @@ mod test {
             let mut scanner = Scanner::new(source);
             let tokens = scanner
                 .scan_tokens()
-                .expect(&format!("Failed to scan token '{source}'"));
+                .unwrap_or_else(|_| panic!("Failed to scan token '{source}'"));
             let expected = expected
                 .iter()
                 .map(|(start, end, token_type)| {
@@ -329,7 +329,7 @@ mod test {
             let mut scanner = Scanner::new(source);
             let tokens = scanner
                 .scan_tokens()
-                .expect(&format!("Failed to scan token '{source}'"));
+                .unwrap_or_else(|_| panic!("Failed to scan token '{source}'"));
             let expected = expected
                 .iter()
                 .map(|(start, end, token_type)| {

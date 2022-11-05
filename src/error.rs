@@ -29,7 +29,7 @@ pub enum RuntimeError {
 #[derive(Error, Debug)]
 pub enum ParseError {
     #[error("Unexpected end of file")]
-    EOF,
+    Eof,
 
     #[error("[{}:{}] Expected `)` after expression, but found `{}`", .pos.0, .pos.1, .lexeme )]
     UnbalancedParen { pos: (usize, usize), lexeme: String },
@@ -52,7 +52,7 @@ pub enum ParseError {
 #[derive(Error, Debug)]
 pub enum ScanError {
     #[error("Unexpected end of file")]
-    EOF,
+    Eof,
 
     #[error("[{}:{}] Unterminated string", .pos.0, .pos.1)]
     UnterminatedString { pos: (usize, usize) },

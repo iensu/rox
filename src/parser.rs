@@ -20,7 +20,7 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(tokens: &'a Vec<Token>) -> Self {
+    pub fn new(tokens: &'a [Token]) -> Self {
         Self {
             tokens: RefCell::new(itertools::peek_nth(tokens.iter())),
         }
@@ -165,7 +165,7 @@ impl<'a> Parser<'a> {
                     .into());
                 }
             }
-            EOF => return Err(ParseError::EOF.into()),
+            EOF => return Err(ParseError::Eof.into()),
             _ => {
                 return Err(ParseError::BadLiteral {
                     pos: (token.line, token.column),
@@ -185,6 +185,7 @@ impl<'a> Parser<'a> {
     ///
     /// This method can be used to continue parsing after a parsing error has been
     /// encountered.
+    #[allow(dead_code)]
     fn synchronize(&self) -> Result<()> {
         let mut previous = self.advance()?;
 
@@ -222,7 +223,7 @@ impl<'a> Parser<'a> {
         self.tokens
             .borrow_mut()
             .next()
-            .ok_or(ParseError::EOF.into())
+            .ok_or_else(|| ParseError::Eof.into())
     }
 
     /// Returns `true` if the type of the next token in the token stream matches one
