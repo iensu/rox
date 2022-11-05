@@ -69,10 +69,8 @@ fn run(program: String, interpreter: &Interpreter) -> Result<()> {
     let mut scanner = scanner::Scanner::new(&program);
     let tokens = scanner.scan_tokens()?;
     let parser = parser::Parser::new(&tokens);
-    let expression = parser.parse()?;
-    let value = interpreter.interpret(&expression)?;
-
-    println!("{value}");
+    let statements = parser.parse()?;
+    interpreter.interpret(&statements)?;
 
     Ok(())
 }

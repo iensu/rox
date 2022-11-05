@@ -1,19 +1,55 @@
 use crate::{
     error::RuntimeError,
-    expression::Expr,
+    expression::{Expr, Stmt},
     token::{TokenType::*, Value},
 };
+use std::cell::RefCell;
 
 use anyhow::Result;
 
-pub struct Interpreter {}
+pub struct Interpreter<'a> {
+    // FIXME: Should be able to do something more generic here
+    output_buffer: Option<RefCell<&'a mut String>>,
+}
 
-impl Interpreter {
+impl<'a> Interpreter<'a> {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            output_buffer: None,
+        }
     }
 
-    pub fn interpret(&self, expr: &Expr) -> Result<Value> {
+    #[cfg(test)]
+    pub fn with_buffer(output_buffer: &'a mut String) -> Self {
+        Self {
+            output_buffer: Some(RefCell::new(output_buffer)),
+        }
+    }
+
+    /// Interprets a list of statements.
+    pub fn interpret(&self, stmts: &[Stmt]) -> Result<()> {
+        for s in stmts {
+            self.execute(s)?;
+        }
+        Ok(())
+    }
+
+    fn execute(&self, stmt: &Stmt) -> Result<()> {
+        match stmt {
+            Stmt::Expression(e) => {
+                self.evaluate(e)?;
+                Ok(())
+            }
+            Stmt::Print(e) => {
+                let value = self.evaluate(e)?;
+                self.println(&value.to_string());
+                Ok(())
+            }
+        }
+    }
+
+    /// Evaluates an expression.
+    pub fn evaluate(&self, expr: &Expr) -> Result<Value> {
         match expr {
             // FIXME: Refactor Value to avoid cloning, or make the type clonable in a cheap way
             Expr::Literal(v) => match v {
@@ -25,9 +61,9 @@ impl Interpreter {
                 Value::Keyword(kw) => Ok(Value::Keyword(*kw)),
             },
 
-            Expr::Grouping(g) => self.interpret(g),
+            Expr::Grouping(g) => self.evaluate(g),
 
-            Expr::Unary(t, e) if t.token_type == MINUS => match self.interpret(e)? {
+            Expr::Unary(t, e) if t.token_type == MINUS => match self.evaluate(e)? {
                 Value::Number(n) => Ok(Value::Number(n * -1.)),
                 _ => Err(RuntimeError::UnaryOperatorError {
                     op: t.lexeme.to_string(),
@@ -37,7 +73,7 @@ impl Interpreter {
                 .into()),
             },
             Expr::Unary(t, e) if t.token_type == BANG => {
-                let value = !self.is_truthy(&self.interpret(e)?);
+                let value = !self.is_truthy(&self.evaluate(e)?);
                 Ok(Value::Bool(value))
             }
             Expr::Unary(t, _) => Err(RuntimeError::UnknownOpError {
@@ -60,7 +96,7 @@ impl Interpreter {
                 .contains(&op.token_type) =>
             {
                 let (x, y) = if let (Value::Number(l), Value::Number(r)) =
-                    (self.interpret(left)?, self.interpret(right)?)
+                    (self.evaluate(left)?, self.evaluate(right)?)
                 {
                     (l, r)
                 } else {
@@ -99,8 +135,8 @@ impl Interpreter {
                 }
             }
             Expr::Binary(left, op, right) if [BANG_EQUAL, EQUAL_EQUAL].contains(&op.token_type) => {
-                let left = self.interpret(left)?;
-                let right = self.interpret(right)?;
+                let left = self.evaluate(left)?;
+                let right = self.evaluate(right)?;
                 match op.token_type {
                     EQUAL_EQUAL => match (left, right) {
                         (Value::Number(l), Value::Number(r)) => Ok(Value::Bool(l == r)),
@@ -120,7 +156,7 @@ impl Interpreter {
                 }
             }
             Expr::Binary(left, op, right) if op.token_type == PLUS => {
-                match (self.interpret(left)?, self.interpret(right)?) {
+                match (self.evaluate(left)?, self.evaluate(right)?) {
                     (Value::Number(l), Value::Number(r)) => Ok(Value::Number(l + r)),
                     (Value::String(l), Value::String(r)) => Ok(Value::String(format!("{l}{r}"))),
                     _ => Err(RuntimeError::BinaryOperatorError {
@@ -147,6 +183,17 @@ impl Interpreter {
             _ => true,
         }
     }
+
+    fn println(&self, text: &str) {
+        match &self.output_buffer {
+            Some(buffer) => {
+                let mut out = buffer.borrow_mut();
+                out.push_str(text);
+                out.push_str("\n");
+            }
+            None => println!("{}", text),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -154,10 +201,20 @@ mod test {
     use super::*;
     use crate::parser::Parser;
     use crate::scanner::Scanner;
-    use crate::token::Token;
     use crate::token::Value as V;
 
     use test_log::test;
+
+    fn interpret(stmts: &[Stmt]) -> anyhow::Result<String> {
+        let mut buffer = String::new();
+        let interpreter = Interpreter::with_buffer(&mut buffer);
+
+        interpreter.interpret(stmts)?;
+
+        let output = buffer.trim().to_string();
+
+        Ok(output)
+    }
 
     #[test]
     fn evaluates_literal_expressions() {
@@ -169,62 +226,24 @@ mod test {
         ];
 
         for v in values {
-            let interpreter = Interpreter::new();
-            let result = interpreter.interpret(&Expr::Literal(&v)).unwrap();
-            assert_eq!(result, v);
+            let stmt = Stmt::Print(Box::new(Expr::Literal(&v)));
+            let output = interpret(&[stmt]).unwrap();
+
+            assert_eq!(output, v.to_string());
         }
-    }
-
-    #[test]
-    fn evaluates_grouping_expressions() {
-        let expressions = [Expr::Literal(&V::Number(3.14))];
-
-        for e in expressions {
-            let expected = Interpreter::new().interpret(&e).unwrap();
-            let result = Interpreter::new()
-                .interpret(&Expr::Grouping(Box::new(e)))
-                .unwrap();
-            assert_eq!(result, expected);
-        }
-    }
-
-    #[test]
-    fn evaluates_unary_minus_expressions() {
-        let minus_token = Token::new(MINUS, "-".into(), V::Null, 1, 0);
-        let fortytwo = V::Number(42.);
-        let interpreter = Interpreter::new();
-
-        let expression = Expr::Unary(&minus_token, Box::new(Expr::Literal(&fortytwo)));
-        let result = interpreter.interpret(&expression).unwrap();
-
-        assert_eq!(result, V::Number(-42.));
-
-        let expression = Expr::Unary(
-            &minus_token,
-            Box::new(Expr::Grouping(Box::new(Expr::Unary(
-                &minus_token,
-                Box::new(Expr::Literal(&fortytwo)),
-            )))),
-        );
-        let result = interpreter.interpret(&expression).unwrap();
-
-        assert_eq!(result, V::Number(42.));
     }
 
     #[test]
     fn minus_unary_cannot_be_applied_to_non_numbers() {
-        let test_cases = ["-false", "-\"foo\"", "-null", "-true", "-foo"];
+        let test_cases = ["-false;", "-\"foo\";", "-null;", "-true;", "-foo;"];
 
         for source in test_cases {
             let mut scanner = Scanner::new(source);
             let tokens = scanner.scan_tokens().unwrap();
             let parser = Parser::new(&tokens);
-            let expression = parser.parse().unwrap();
-            let interpreter = Interpreter::new();
+            let stmts = parser.parse().unwrap();
 
-            let err = interpreter
-                .interpret(&expression)
-                .expect_err("{source} should fail");
+            let err = interpret(&stmts).expect_err("{source} should fail");
 
             match err.downcast::<RuntimeError>().unwrap() {
                 RuntimeError::UnaryOperatorError { .. } => assert!(true),
@@ -234,154 +253,134 @@ mod test {
     }
 
     #[test]
-    fn evaluates_unary_negation_expressions() {
-        let bang_token = Token::new(BANG, "!".into(), V::Null, 1, 0);
-        let truth = V::Bool(true);
-        let interpreter = Interpreter::new();
-
-        let expression = Expr::Unary(&bang_token, Box::new(Expr::Literal(&truth)));
-        let result = interpreter.interpret(&expression).unwrap();
-
-        assert_eq!(result, V::Bool(false));
-
-        let expression = Expr::Unary(
-            &bang_token,
-            Box::new(Expr::Grouping(Box::new(Expr::Unary(
-                &bang_token,
-                Box::new(Expr::Literal(&truth)),
-            )))),
-        );
-        let result = interpreter.interpret(&expression).unwrap();
-
-        assert_eq!(result, V::Bool(true));
-    }
-
-    #[test]
     fn bang_unary_only_treats_nil_and_false_as_falsy() {
-        let negative_cases = ["!\"\"", "!0", "!1", "!\"foo\""];
+        let negative_cases = ["!\"\";", "!0;", "!1;", "!\"foo\";"];
 
         for source in negative_cases {
-            let mut scanner = Scanner::new(source);
+            let source = format!("print {}", source);
+            let mut scanner = Scanner::new(&source);
             let tokens = scanner.scan_tokens().unwrap();
             let parser = Parser::new(&tokens);
-            let expression = parser.parse().unwrap();
-            let interpreter = Interpreter::new();
-            let value = interpreter.interpret(&expression).unwrap();
+            let stmts = parser.parse().unwrap();
+            let output = interpret(&stmts).unwrap();
 
-            assert_eq!(value, V::Bool(false));
+            assert_eq!(output, "false");
         }
 
-        let positive_cases = vec!["!false", "!nil"];
+        let positive_cases = vec!["!false;", "!nil;"];
 
         for source in positive_cases {
-            let mut scanner = Scanner::new(source);
+            let source = format!("print {}", source);
+            let mut scanner = Scanner::new(&source);
             let tokens = scanner.scan_tokens().unwrap();
             let parser = Parser::new(&tokens);
-            let expression = parser.parse().unwrap();
-            let interpreter = Interpreter::new();
-            let value = interpreter.interpret(&expression).unwrap();
+            let stmts = parser.parse().unwrap();
+            let output = interpret(&stmts).unwrap();
 
-            assert_eq!(value, V::Bool(true));
+            assert_eq!(output, "true");
         }
     }
 
     #[test]
     fn evaluates_arithmatic_expressions() {
         let test_cases = [
-            ("1 + 1", 2.),
-            ("1 - 1", 0.),
-            ("2 * 2", 4.),
-            ("2 / 2", 1.),
-            ("2 ^ 2", 4.),
-            ("2 + 4 * 10", 42.),
-            ("(2 + 4) * 10", 60.),
+            ("1 + 1;", 2.),
+            ("1 - 1;", 0.),
+            ("2 * 2;", 4.),
+            ("2 / 2;", 1.),
+            ("2 ^ 2;", 4.),
+            ("2 + 4 * 10;", 42.),
+            ("(2 + 4) * 10;", 60.),
         ];
 
         for (source, expected) in test_cases {
-            let mut scanner = Scanner::new(source);
+            let source = format!("print {}", source);
+            let mut scanner = Scanner::new(&source);
             let tokens = scanner.scan_tokens().unwrap();
             let parser = Parser::new(&tokens);
-            let expression = parser.parse().unwrap();
-            let interpreter = Interpreter::new();
-            let value = interpreter.interpret(&expression).unwrap();
+            let stmts = parser.parse().unwrap();
+            let output = interpret(&stmts).unwrap();
 
-            assert_eq!(value, V::Number(expected), "Failed to evaluate {source}");
+            assert_eq!(output, format!("{}", expected));
         }
     }
 
     #[test]
     fn plus_concatenates_strings() {
-        let source = "\"foo\" + \"bar\"";
+        let source = "print \"foo\" + \"bar\";";
 
         let mut scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens().unwrap();
         let parser = Parser::new(&tokens);
-        let expression = parser.parse().unwrap();
-        let interpreter = Interpreter::new();
-        let value = interpreter.interpret(&expression).unwrap();
+        let stmts = parser.parse().unwrap();
+        let output = interpret(&stmts).unwrap();
 
-        assert_eq!(
-            format!("{value}"),
-            "\"foobar\"",
-            "Failed to evaluate {source}"
-        );
+        assert_eq!(output, "\"foobar\"", "Failed to evaluate {source}");
     }
 
     #[test]
     fn evaluates_comparison_expressions() {
         let test_cases = [
-            ("2 > 1", true),
-            ("1 < 2", true),
-            ("2 >= 2", true),
-            ("2 <= 2", true),
-            ("2 > 3", false),
-            ("2 >= 3", false),
-            ("3 <= 2", false),
-            ("3 < 2", false),
+            ("2 > 1;", true),
+            ("1 < 2;", true),
+            ("2 >= 2;", true),
+            ("2 <= 2;", true),
+            ("2 > 3;", false),
+            ("2 >= 3;", false),
+            ("3 <= 2;", false),
+            ("3 < 2;", false),
         ];
 
         for (source, expected) in test_cases {
-            let mut scanner = Scanner::new(source);
+            let source = format!("print {}", source);
+            let mut scanner = Scanner::new(&source);
             let tokens = scanner.scan_tokens().unwrap();
             let parser = Parser::new(&tokens);
-            let expression = parser.parse().unwrap();
-            let interpreter = Interpreter::new();
-            let value = interpreter.interpret(&expression).unwrap();
+            let stmts = parser.parse().unwrap();
+            let output = interpret(&stmts).unwrap();
 
-            assert_eq!(value, V::Bool(expected), "Failed to evaluate {source}");
+            assert_eq!(
+                output,
+                format!("{}", expected),
+                "Failed to evaluate {source}"
+            );
         }
     }
 
     #[test]
     fn evaluates_equality_expressions() {
         let test_cases = [
-            ("1 == 1", true),
-            ("nil == nil", true),
-            ("true == true", true),
-            ("\"foo\" == \"foo\"", true),
-            ("1 == 2", false),
-            ("nil == true", false),
-            ("true == false", false),
-            ("\"foo\" == \"bar\"", false),
-            ("1 != 1", false),
-            ("nil != nil", false),
-            ("true != true", false),
-            ("\"foo\" != \"foo\"", false),
-            ("1 != 2", true),
-            ("nil != true", true),
-            ("true != false", true),
-            ("\"foo\" != \"bar\"", true),
+            ("1 == 1;", true),
+            ("nil == nil;", true),
+            ("true == true;", true),
+            ("\"foo\" == \"foo\";", true),
+            ("1 == 2;", false),
+            ("nil == true;", false),
+            ("true == false;", false),
+            ("\"foo\" == \"bar\";", false),
+            ("1 != 1;", false),
+            ("nil != nil;", false),
+            ("true != true;", false),
+            ("\"foo\" != \"foo\";", false),
+            ("1 != 2;", true),
+            ("nil != true;", true),
+            ("true != false;", true),
+            ("\"foo\" != \"bar\";", true),
         ];
 
         for (source, expected) in test_cases {
-            let mut scanner = Scanner::new(source);
+            let source = format!("print {}", source);
+            let mut scanner = Scanner::new(&source);
             let tokens = scanner.scan_tokens().unwrap();
             let parser = Parser::new(&tokens);
-            let expression = parser.parse().unwrap();
-            let interpreter = Interpreter::new();
-            let value = interpreter.interpret(&expression).unwrap();
+            let stmts = parser.parse().unwrap();
+            let output = interpret(&stmts).unwrap();
 
-            assert_eq!(value, V::Bool(expected), "Failed to evaluate {source}");
+            assert_eq!(
+                output,
+                format!("{}", expected),
+                "Failed to evaluate {source}"
+            );
         }
     }
 }

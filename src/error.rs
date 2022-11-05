@@ -34,6 +34,13 @@ pub enum ParseError {
     #[error("[{}:{}] Expected `)` after expression, but found `{}`", .pos.0, .pos.1, .lexeme )]
     UnbalancedParen { pos: (usize, usize), lexeme: String },
 
+    #[error("[{}:{}] Unexpected token, expected `{}` but found `{}`", .pos.0, .pos.1, .expected, .found)]
+    UnexpectedToken {
+        pos: (usize, usize),
+        found: String,
+        expected: String,
+    },
+
     #[error("[{}:{}] Failed to parse literal from {:?} `{}`", .pos.0, .pos.1, .token_type, .lexeme )]
     BadLiteral {
         pos: (usize, usize),
