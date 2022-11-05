@@ -8,7 +8,7 @@ If you have the executable built you can either run a program file by passing th
 
 ``` shell
 # Running a file
-$ rox ./programs/simple-expression.rox
+$ rox ./programs/simple-program.rox
 
 # Opening an interactive prompt
 $ rox
@@ -21,7 +21,7 @@ Rox prompt, hit ctrl-d to quit.
 If you are using [the Nix package manager](https://nixos.org) you can run `rox` as a flake:
 
 ``` shell
-$ nix run .# ./programs/simple-expression.rox
+$ nix run .# ./programs/simple-program.rox
 $ nix run .#
 Rox prompt, hit ctrl-d to quit.
 >
