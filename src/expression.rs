@@ -27,6 +27,20 @@ impl<'a> std::fmt::Display for Expr<'a> {
     }
 }
 
+pub enum Stmt<'a> {
+    Expression(Box<Expr<'a>>),
+    Print(Box<Expr<'a>>),
+}
+
+impl<'a> std::fmt::Display for Stmt<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Stmt::Expression(e) => write!(f, "{};", e),
+            Stmt::Print(e) => write!(f, "print {};", e),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::Expr::*;
@@ -42,7 +56,7 @@ mod test {
     }
 
     #[test]
-    fn displays_ok() {
+    fn expr_displays_ok() {
         let forty_two = V::Number(42.);
         let star = t(STAR, "*");
         let minus = t(MINUS, "-");
@@ -71,5 +85,37 @@ mod test {
             format!("{}", Literal(&V::String("Hello".into()))),
             "\"Hello\""
         );
+    }
+
+    #[test]
+    fn stmt_displays_ok() {
+        let forty_two = V::Number(42.);
+        let star = t(STAR, "*");
+        let minus = t(MINUS, "-");
+        let ten = V::Number(10.);
+        let plus = t(PLUS, "+");
+        let hundred = V::Number(100.);
+        let slash = t(SLASH, "/");
+        let twelve = V::Number(12.);
+
+        let expr: Expr = Binary(
+            Box::new(Binary(
+                Box::new(Literal(&forty_two)),
+                &star,
+                Box::new(Unary(&minus, Box::new(Literal(&ten)))),
+            )),
+            &plus,
+            Box::new(Binary(
+                Box::new(Literal(&hundred)),
+                &slash,
+                Box::new(Literal(&twelve)),
+            )),
+        );
+        let stmt = Stmt::Expression(Box::new(expr));
+        assert_eq!(format!("{}", stmt), "(+ (* 42 -10) (/ 100 12));");
+
+        let hello = V::String("hello world".into());
+        let stmt = Stmt::Print(Box::new(Literal(&hello)));
+        assert_eq!(format!("{}", stmt), "print \"hello world\";");
     }
 }
