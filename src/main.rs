@@ -8,7 +8,6 @@ use log::debug;
 mod error;
 mod expression;
 mod interpreter;
-mod keywords;
 mod parser;
 mod scanner;
 mod token;
@@ -66,7 +65,7 @@ fn run_prompt() -> Result<()> {
 }
 
 fn run(program: String, interpreter: &Interpreter) -> Result<()> {
-    let mut scanner = scanner::Scanner::new(&program);
+    let scanner = scanner::Scanner::new(&program);
     let tokens = scanner.scan_tokens()?;
     let parser = parser::Parser::new(&tokens);
     let statements = parser.parse()?;

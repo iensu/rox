@@ -54,9 +54,6 @@ pub enum ScanError {
     #[error("Unexpected end of file")]
     Eof,
 
-    #[error("[{}:{}] Unterminated string", .pos.0, .pos.1)]
-    UnterminatedString { pos: (usize, usize) },
-
     #[error("[{}:{}] Unexpected character `{}`", .pos.0, .pos.1, .c)]
     UnexpectedChar { pos: (usize, usize), c: char },
 

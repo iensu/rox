@@ -13,7 +13,7 @@ use anyhow::Result;
 use itertools::PeekNth;
 use log::{debug, trace};
 
-type TokenStream<'a> = PeekNth<Iter<'a, Token>>;
+type TokenStream<'a> = PeekNth<Iter<'a, Token<'a>>>;
 
 pub struct Parser<'a> {
     tokens: RefCell<TokenStream<'a>>,
@@ -26,7 +26,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&self) -> Result<Vec<Stmt<'a>>> {
+    pub fn parse(&'a self) -> Result<Vec<Stmt<'a>>> {
         let mut statements = vec![];
 
         while !self.match_next(&[EOF]) {
@@ -37,7 +37,7 @@ impl<'a> Parser<'a> {
         Ok(statements)
     }
 
-    fn print_statement(&self) -> Result<Stmt<'a>> {
+    fn print_statement(&'a self) -> Result<Stmt<'a>> {
         if self.match_next(&[PRINT]) {
             self.advance()?;
             let expr = self.expression()?;
@@ -49,19 +49,19 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn expression_statement(&self) -> Result<Stmt<'a>> {
+    fn expression_statement(&'a self) -> Result<Stmt<'a>> {
         let expr = self.expression()?;
         self.verify_end_of_statement()?;
         Ok(Stmt::Expression(Box::new(expr)))
     }
 
-    fn expression(&self) -> Result<Expr<'a>> {
+    fn expression(&'a self) -> Result<Expr<'a>> {
         let expr = self.equality()?;
         trace!("expression: {expr}");
         Ok(expr)
     }
 
-    fn equality(&self) -> Result<Expr<'a>> {
+    fn equality(&'a self) -> Result<Expr<'a>> {
         let mut expr = self.comparison()?;
 
         while self.match_next(&[BANG_EQUAL, EQUAL_EQUAL]) {
@@ -78,7 +78,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn comparison(&self) -> Result<Expr<'a>> {
+    fn comparison(&'a self) -> Result<Expr<'a>> {
         let mut expr = self.term()?;
 
         while self.match_next(&[GREATER, GREATER_EQUAL, LESS, LESS_EQUAL]) {
@@ -95,7 +95,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn term(&self) -> Result<Expr<'a>> {
+    fn term(&'a self) -> Result<Expr<'a>> {
         let mut expr = self.factor()?;
 
         while self.match_next(&[PLUS, MINUS]) {
@@ -112,7 +112,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn factor(&self) -> Result<Expr<'a>> {
+    fn factor(&'a self) -> Result<Expr<'a>> {
         let mut expr = self.unary()?;
 
         while self.match_next(&[STAR, SLASH, CARET]) {
@@ -129,7 +129,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn unary(&self) -> Result<Expr<'a>> {
+    fn unary(&'a self) -> Result<Expr<'a>> {
         let expr = if self.match_next(&[BANG, MINUS]) {
             let operator = self.advance()?;
             debug!("unary operator: {operator:?}");
@@ -145,7 +145,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn primary(&self) -> Result<Expr<'a>> {
+    fn primary(&'a self) -> Result<Expr<'a>> {
         let token = self.advance()?;
 
         let expr = match token.token_type {
@@ -186,7 +186,7 @@ impl<'a> Parser<'a> {
     /// This method can be used to continue parsing after a parsing error has been
     /// encountered.
     #[allow(dead_code)]
-    fn synchronize(&self) -> Result<()> {
+    fn synchronize(&'a self) -> Result<()> {
         let mut previous = self.advance()?;
 
         while !self.match_next(&[EOF]) {
@@ -205,7 +205,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Verifies that the next token closes the current statement. Consumes the next token.
-    fn verify_end_of_statement(&self) -> Result<()> {
+    fn verify_end_of_statement(&'a self) -> Result<()> {
         let next = self.advance()?;
         match next.token_type {
             SEMICOLON => Ok(()),
@@ -245,7 +245,7 @@ mod test {
     #[test]
     fn parses_a_simple_expression() {
         let source = "5 + 6;";
-        let mut scanner = Scanner::new(source);
+        let scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens().unwrap();
         let parser = Parser::new(&tokens);
         let stmts = parser.parse().unwrap();
@@ -256,7 +256,7 @@ mod test {
     #[test]
     fn parses_a_more_complex_expression() {
         let source = "12 + 14 + 23 + 18;";
-        let mut scanner = Scanner::new(source);
+        let scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens().unwrap();
         let parser = Parser::new(&tokens);
         let stmts = parser.parse().unwrap();
@@ -279,7 +279,7 @@ mod test {
         ];
 
         for (source, expected) in test_cases {
-            let mut scanner = Scanner::new(source);
+            let scanner = Scanner::new(source);
             let tokens = scanner.scan_tokens().unwrap();
             let parser = Parser::new(&tokens);
             let stmts = parser.parse().unwrap();
@@ -291,7 +291,7 @@ mod test {
     #[test]
     fn parses_grouped_expressions() {
         let source = "12 * (14 + 23) / 10;";
-        let mut scanner = Scanner::new(source);
+        let scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens().unwrap();
         let parser = Parser::new(&tokens);
         let stmts = parser.parse().unwrap();
@@ -307,7 +307,7 @@ mod test {
         let test_cases = vec![("-1;", "-1;"), ("!x;", "!x;")];
 
         for (source, expected) in test_cases {
-            let mut scanner = Scanner::new(source);
+            let scanner = Scanner::new(source);
             let tokens = scanner.scan_tokens().unwrap();
             let parser = Parser::new(&tokens);
             let stmts = parser.parse().unwrap();

@@ -1,3 +1,4 @@
+use std::cell::{Cell, RefCell};
 use std::str::Chars;
 
 use anyhow::Result;
@@ -7,32 +8,34 @@ use crate::{
     token::{Token, TokenType, Value},
 };
 
+type CharStream<'a> = itertools::PeekNth<Chars<'a>>;
+
 pub struct Scanner<'a> {
-    start: usize,
-    current: usize,
-    line: usize,
-    column_offset: usize,
+    start: Cell<usize>,
+    current: Cell<usize>,
+    line: Cell<usize>,
+    column_offset: Cell<usize>,
     source: &'a str,
-    chars: itertools::PeekNth<Chars<'a>>,
+    chars: RefCell<CharStream<'a>>,
 }
 
 impl<'a> Scanner<'a> {
     pub fn new(source: &'a str) -> Self {
         Self {
-            start: 0,
-            current: 0,
-            line: 1,
-            column_offset: 0,
+            start: Cell::new(0),
+            current: Cell::new(0),
+            line: Cell::new(1),
+            column_offset: Cell::new(0),
             source,
-            chars: itertools::peek_nth(source.chars()),
+            chars: RefCell::new(itertools::peek_nth(source.chars())),
         }
     }
 
-    pub fn scan_tokens(&mut self) -> Result<Vec<Token>> {
+    pub fn scan_tokens(&'a self) -> Result<Vec<Token>> {
         let mut tokens: Vec<Token> = Vec::new();
 
         while !self.is_at_end() {
-            self.start = self.current;
+            self.start.set(self.current.get());
 
             if let Some(token) = self.scan_token()? {
                 tokens.push(token);
@@ -43,33 +46,30 @@ impl<'a> Scanner<'a> {
 
         tokens.push(Token::new(
             TokenType::EOF,
-            "".into(),
+            TokenType::EOF.as_str().unwrap(),
             Value::Null,
-            self.line,
-            self.current - self.column_offset,
+            self.line.get(),
+            self.current.get() - self.column_offset.get(),
         ));
 
         Ok(tokens)
     }
 
     fn is_at_end(&self) -> bool {
-        self.current >= self.source.len()
+        self.current.get() >= self.source.len()
     }
 
-    fn advance(&mut self) -> Option<char> {
-        self.current += 1;
-        self.chars.next()
+    fn advance(&self) -> Result<char> {
+        self.current.set(self.current.get() + 1);
+        self.chars
+            .borrow_mut()
+            .next()
+            .ok_or_else(|| ScanError::Eof.into())
     }
 
-    fn scan_token(&mut self) -> Result<Option<Token>> {
+    fn scan_token(&'a self) -> Result<Option<Token>> {
         use TokenType::*;
-        let c = self.advance();
-
-        if c.is_none() {
-            return Ok(None);
-        }
-
-        let c = c.ok_or(ScanError::Eof)?;
+        let c = self.advance()?;
 
         match c {
             '(' => Ok(Some(self.create_token(LEFT_PAREN))),
@@ -83,14 +83,18 @@ impl<'a> Scanner<'a> {
             '+' => Ok(Some(self.create_token(PLUS))),
             ';' => Ok(Some(self.create_token(SEMICOLON))),
             '*' => Ok(Some(self.create_token(STAR))),
-            '!' => Ok(Some(self.one_or_two_char_token(&'=', BANG, BANG_EQUAL))),
+            '!' => Ok(Some(self.one_or_two_char_token(&'=', BANG, BANG_EQUAL)?)),
             '>' => Ok(Some(self.one_or_two_char_token(
                 &'=',
                 GREATER,
                 GREATER_EQUAL,
-            ))),
-            '<' => Ok(Some(self.one_or_two_char_token(&'=', LESS, LESS_EQUAL))),
-            '=' => Ok(Some(self.one_or_two_char_token(&'=', EQUAL, EQUAL_EQUAL))),
+            )?)),
+            '<' => Ok(Some(self.one_or_two_char_token(&'=', LESS, LESS_EQUAL)?)),
+            '=' => Ok(Some(self.one_or_two_char_token(
+                &'=',
+                EQUAL,
+                EQUAL_EQUAL,
+            )?)),
             // Whitespace
             ' ' | '\t' | '\r' => Ok(None),
             // New line
@@ -100,10 +104,10 @@ impl<'a> Scanner<'a> {
             }
             // Comment or SLASH
             '/' => {
-                if self.chars.peek() == Some(&'/') {
-                    self.advance(); // Consume the forward slash
-                    while !self.is_at_end() && self.chars.peek() != Some(&'\n') {
-                        self.advance();
+                if self.chars.borrow_mut().peek() == Some(&'/') {
+                    self.advance()?; // Consume the forward slash
+                    while !self.is_at_end() && self.chars.borrow_mut().peek() != Some(&'\n') {
+                        self.advance()?;
                     }
                     Ok(None)
                 } else {
@@ -111,29 +115,22 @@ impl<'a> Scanner<'a> {
                 }
             }
             '"' => {
-                let column = self.start - self.column_offset;
-                let start_line = self.line;
+                let column = self.start.get() - self.column_offset.get();
+                let start_line = self.line.get();
 
                 loop {
-                    if let Some(c) = self.advance() {
-                        if c == '"' {
-                            break;
-                        } else if c == '\n' {
-                            self.newline();
-                        }
-                    } else {
-                        return Err(ScanError::UnterminatedString {
-                            pos: (start_line, column),
-                        }
-                        .into());
-                    }
+                    match self.advance()? {
+                        '"' => break,
+                        '\n' => self.newline(),
+                        _ => continue,
+                    };
                 }
-                let lexeme = &self.source[self.start..self.current];
-                let string = &self.source[self.start + 1..self.current - 1];
+                let lexeme = &self.source[self.start.get()..self.current.get()];
+                let string = &self.source[self.start.get() + 1..self.current.get() - 1];
 
                 Ok(Some(Token::new(
                     STRING,
-                    lexeme.into(),
+                    lexeme,
                     Value::String(string.into()),
                     start_line,
                     column,
@@ -141,65 +138,81 @@ impl<'a> Scanner<'a> {
             }
 
             c if c.is_ascii_digit() => {
-                while !self.is_at_end()
-                    && (self.chars.peek().map_or(false, |c| c.is_ascii_digit())
-                        || self.chars.peek() == Some(&'.')
-                            && self.chars.peek_nth(1).map_or(false, |c| c.is_ascii_digit()))
-                {
-                    self.advance();
+                loop {
+                    if self.is_at_end() {
+                        break;
+                    }
+
+                    let (next_is_digit, next_is_dot_digit) = {
+                        let mut chars = self.chars.borrow_mut();
+                        let is_digit = chars.peek().map_or(false, |c| c.is_ascii_digit());
+                        let is_dot_digit = chars.peek() == Some(&'.')
+                            && chars.peek_nth(1).map_or(false, |c| c.is_ascii_digit());
+
+                        (is_digit, is_dot_digit)
+                    };
+
+                    if next_is_digit || next_is_dot_digit {
+                        self.advance()?;
+                    } else {
+                        break;
+                    }
                 }
-                let lexeme = &self.source[self.start..self.current];
+
+                let lexeme = &self.source[self.start.get()..self.current.get()];
                 let number = lexeme
                     .parse::<f64>()
                     .map_err(|_| ScanError::BadConversion {
-                        pos: (self.start, self.current),
+                        pos: (self.start.get(), self.current.get()),
                         lexeme: lexeme.to_string(),
                         target_type: "f64".to_string(),
                     })?;
 
                 Ok(Some(Token::new(
                     NUMBER,
-                    lexeme.into(),
+                    lexeme,
                     Value::Number(number),
-                    self.line,
-                    self.start - self.column_offset,
+                    self.line.get(),
+                    self.start.get() - self.column_offset.get(),
                 )))
             }
 
             c if c.is_ascii_alphabetic() => {
                 while !self.is_at_end()
-                    && self.chars.peek().map_or(false, |c| {
+                    && self.chars.borrow_mut().peek().map_or(false, |c| {
                         c.is_ascii_alphabetic() || c.is_ascii_digit() || c == &'_'
                     })
                 {
-                    self.advance();
+                    self.advance()?;
                 }
-                let lexeme = &self.source[self.start..self.current];
+                let lexeme = &self.source[self.start.get()..self.current.get()];
 
-                let (token_type, literal) =
-                    if let Some((keyword, string)) = TokenType::keyword(lexeme) {
-                        match keyword {
-                            TRUE => (keyword, Value::Bool(true)),
-                            FALSE => (keyword, Value::Bool(false)),
-                            NIL => (keyword, Value::Null),
-                            _ => (keyword, Value::Keyword(string)),
-                        }
-                    } else {
-                        (IDENTIFIER, Value::Identifier(lexeme.into()))
-                    };
+                let token_type = TokenType::from_str(lexeme).unwrap_or(IDENTIFIER);
+                let literal = match token_type {
+                    TRUE => Value::Bool(true),
+                    FALSE => Value::Bool(false),
+                    NIL => Value::Null,
+                    IDENTIFIER => Value::Identifier(lexeme.into()),
+                    _ => {
+                        let lexeme = token_type
+                            .as_str()
+                            .expect("A keyword should have a str representation");
+                        Value::Keyword(lexeme)
+                    }
+                };
 
                 Ok(Some(Token::new(
                     token_type,
-                    lexeme.into(),
+                    lexeme,
                     literal,
-                    self.line,
-                    self.start - self.column_offset,
+                    self.line.get(),
+                    self.start.get() - self.column_offset.get(),
                 )))
             }
 
             _ => {
-                let line = self.line;
-                let col = self.start - self.column_offset;
+                let line = self.line.get();
+                let col = self.start.get() - self.column_offset.get();
                 Err(ScanError::UnexpectedChar {
                     pos: (line, col),
                     c,
@@ -209,34 +222,36 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn newline(&mut self) {
-        self.line += 1;
-        self.column_offset = self.current;
+    fn newline(&self) {
+        self.line.set(self.line.get() + 1);
+        self.column_offset.set(self.current.get());
     }
 
-    fn create_token(&mut self, t: TokenType) -> Token {
-        let lexeme = &self.source[self.start..self.current];
+    fn create_token(&self, t: TokenType) -> Token {
+        let lexeme = t
+            .as_str()
+            .unwrap_or(&self.source[self.start.get()..self.current.get()]);
 
         Token::new(
             t,
-            lexeme.into(),
+            lexeme,
             Value::Null,
-            self.line,
-            self.start - self.column_offset,
+            self.line.get(),
+            self.start.get() - self.column_offset.get(),
         )
     }
 
     fn one_or_two_char_token(
-        &mut self,
+        &self,
         check: &char,
         single: TokenType,
         double: TokenType,
-    ) -> Token {
-        if self.chars.peek() == Some(check) {
-            self.advance();
-            self.create_token(double)
+    ) -> Result<Token> {
+        if self.chars.borrow_mut().peek() == Some(check) {
+            self.advance()?;
+            Ok(self.create_token(double))
         } else {
-            self.create_token(single)
+            Ok(self.create_token(single))
         }
     }
 }
@@ -246,7 +261,7 @@ mod test {
     use super::TokenType::*;
     use super::Value as L;
     use super::*;
-    use crate::keywords as kw;
+    use crate::token::tokens;
 
     use test_log::test;
 
@@ -275,13 +290,13 @@ mod test {
         ];
 
         for (source, token_type) in test_cases {
-            let mut scanner = Scanner::new(source);
+            let scanner = Scanner::new(source);
             let tokens = scanner
                 .scan_tokens()
                 .unwrap_or_else(|_| panic!("Failed to scan token '{source}'"));
             let expected = vec![
-                Token::new(token_type, source.to_string(), L::Null, 1, 0),
-                Token::new(EOF, "".into(), L::Null, 1, source.len()),
+                Token::new(token_type, source, L::Null, 1, 0),
+                Token::new(EOF, tokens::EOF, L::Null, 1, source.len()),
             ];
 
             assert_eq!(tokens, expected);
@@ -302,7 +317,7 @@ mod test {
         ];
 
         for (source, expected) in test_cases {
-            let mut scanner = Scanner::new(source);
+            let scanner = Scanner::new(source);
             let tokens = scanner
                 .scan_tokens()
                 .unwrap_or_else(|_| panic!("Failed to scan token '{source}'"));
@@ -326,7 +341,7 @@ mod test {
         ];
 
         for (source, expected) in test_cases {
-            let mut scanner = Scanner::new(source);
+            let scanner = Scanner::new(source);
             let tokens = scanner
                 .scan_tokens()
                 .unwrap_or_else(|_| panic!("Failed to scan token '{source}'"));
@@ -365,7 +380,7 @@ mod test {
             Token::new(EOF, "".into(), L::Null, 3, 2),
         ];
 
-        let mut scanner = Scanner::new(source);
+        let scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens().unwrap();
 
         assert_eq!(tokens, expected);
@@ -398,7 +413,7 @@ mod test {
         ];
 
         for (source, expected) in test_cases {
-            let mut scanner = Scanner::new(source);
+            let scanner = Scanner::new(source);
             let tokens = scanner.scan_tokens().unwrap();
             assert_eq!(tokens, expected);
         }
@@ -419,7 +434,7 @@ mod test {
         )];
 
         for (source, expected) in test_cases {
-            let mut scanner = Scanner::new(source);
+            let scanner = Scanner::new(source);
             let tokens = scanner.scan_tokens().unwrap();
             assert_eq!(tokens, expected);
         }
@@ -442,7 +457,7 @@ mod test {
         )];
 
         for (source, expected) in test_cases {
-            let mut scanner = Scanner::new(source);
+            let scanner = Scanner::new(source);
             let tokens = scanner.scan_tokens().unwrap();
             assert_eq!(tokens, expected);
         }
@@ -475,21 +490,9 @@ string"
         )];
 
         for (source, expected) in test_cases {
-            let mut scanner = Scanner::new(source);
+            let scanner = Scanner::new(source);
             let tokens = scanner.scan_tokens().unwrap();
             assert_eq!(tokens, expected);
-        }
-    }
-
-    #[test]
-    fn unterminated_strings_are_handled_correctly() {
-        let mut scanner = Scanner::new("\"unterminated string");
-        match scanner.scan_tokens() {
-            Ok(_) => assert!(false, "Should generate an error!"),
-            Err(e) => assert!(
-                e.to_string().contains("Unterminated string"),
-                "Caused by an unterminated string"
-            ),
         }
     }
 
@@ -532,7 +535,7 @@ string"
         ];
 
         for (source, expected) in test_cases {
-            let mut scanner = Scanner::new(source);
+            let scanner = Scanner::new(source);
             let tokens = scanner.scan_tokens().unwrap();
             assert_eq!(tokens, expected);
         }
@@ -541,22 +544,22 @@ string"
     #[test]
     fn keywords_are_parsed_correctly() {
         let test_cases = vec![
-            ("and", AND, L::Keyword(kw::AND), 0, 3),
-            ("class", CLASS, L::Keyword(kw::CLASS), 0, 5),
-            ("else", ELSE, L::Keyword(kw::ELSE), 0, 4),
+            ("and", AND, L::Keyword(tokens::AND), 0, 3),
+            ("class", CLASS, L::Keyword(tokens::CLASS), 0, 5),
+            ("else", ELSE, L::Keyword(tokens::ELSE), 0, 4),
             ("false", FALSE, L::Bool(false), 0, 5),
-            ("fun", FUN, L::Keyword(kw::FUN), 0, 3),
-            ("for", FOR, L::Keyword(kw::FOR), 0, 3),
-            ("if", IF, L::Keyword(kw::IF), 0, 2),
+            ("fun", FUN, L::Keyword(tokens::FUN), 0, 3),
+            ("for", FOR, L::Keyword(tokens::FOR), 0, 3),
+            ("if", IF, L::Keyword(tokens::IF), 0, 2),
             ("nil", NIL, L::Null, 0, 3),
-            ("or", OR, L::Keyword(kw::OR), 0, 2),
-            ("print", PRINT, L::Keyword(kw::PRINT), 0, 5),
-            ("return", RETURN, L::Keyword(kw::RETURN), 0, 6),
-            ("super", SUPER, L::Keyword(kw::SUPER), 0, 5),
-            ("this", THIS, L::Keyword(kw::THIS), 0, 4),
+            ("or", OR, L::Keyword(tokens::OR), 0, 2),
+            ("print", PRINT, L::Keyword(tokens::PRINT), 0, 5),
+            ("return", RETURN, L::Keyword(tokens::RETURN), 0, 6),
+            ("super", SUPER, L::Keyword(tokens::SUPER), 0, 5),
+            ("this", THIS, L::Keyword(tokens::THIS), 0, 4),
             ("true", TRUE, L::Bool(true), 0, 4),
-            ("var", VAR, L::Keyword(kw::VAR), 0, 3),
-            ("while", WHILE, L::Keyword(kw::WHILE), 0, 5),
+            ("var", VAR, L::Keyword(tokens::VAR), 0, 3),
+            ("while", WHILE, L::Keyword(tokens::WHILE), 0, 5),
         ];
 
         for (source, keyword, literal, start, end) in test_cases {
@@ -564,7 +567,7 @@ string"
                 Token::new(keyword, source.into(), literal, 1, start),
                 Token::new(EOF, "".into(), L::Null, 1, end),
             ];
-            let mut scanner = Scanner::new(source);
+            let scanner = Scanner::new(source);
             let tokens = scanner.scan_tokens().unwrap();
             assert_eq!(tokens, expected);
         }
@@ -574,13 +577,13 @@ string"
     fn variable_assignment() {
         let source = "var x = 42 / (20 + 22);";
 
-        let mut scanner = Scanner::new(source);
+        let scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens().unwrap();
 
         assert_eq!(
             tokens,
             vec![
-                Token::new(VAR, "var".into(), L::Keyword(kw::VAR), 1, 0),
+                Token::new(VAR, "var".into(), L::Keyword(tokens::VAR), 1, 0),
                 Token::new(IDENTIFIER, "x".into(), L::Identifier("x".into()), 1, 4),
                 Token::new(EQUAL, "=".into(), L::Null, 1, 6),
                 Token::new(NUMBER, "42".into(), L::Number(42.), 1, 8),
@@ -605,11 +608,11 @@ fun square(x) {
 "
         .trim();
 
-        let mut scanner = Scanner::new(source);
+        let scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens().unwrap();
 
         let expected = vec![
-            Token::new(FUN, "fun".into(), L::Keyword(kw::FUN), 1, 0),
+            Token::new(FUN, "fun".into(), L::Keyword(tokens::FUN), 1, 0),
             Token::new(
                 IDENTIFIER,
                 "square".into(),
@@ -621,7 +624,7 @@ fun square(x) {
             Token::new(IDENTIFIER, "x".into(), L::Identifier("x".into()), 1, 11),
             Token::new(RIGHT_PAREN, ")".into(), L::Null, 1, 12),
             Token::new(LEFT_BRACE, "{".into(), L::Null, 1, 14),
-            Token::new(RETURN, "return".into(), L::Keyword(kw::RETURN), 2, 2),
+            Token::new(RETURN, "return".into(), L::Keyword(tokens::RETURN), 2, 2),
             Token::new(IDENTIFIER, "x".into(), L::Identifier("x".into()), 2, 9),
             Token::new(STAR, "*".into(), L::Null, 2, 11),
             Token::new(IDENTIFIER, "x".into(), L::Identifier("x".into()), 2, 13),

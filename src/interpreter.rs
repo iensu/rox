@@ -238,7 +238,7 @@ mod test {
         let test_cases = ["-false;", "-\"foo\";", "-null;", "-true;", "-foo;"];
 
         for source in test_cases {
-            let mut scanner = Scanner::new(source);
+            let scanner = Scanner::new(source);
             let tokens = scanner.scan_tokens().unwrap();
             let parser = Parser::new(&tokens);
             let stmts = parser.parse().unwrap();
@@ -258,7 +258,7 @@ mod test {
 
         for source in negative_cases {
             let source = format!("print {}", source);
-            let mut scanner = Scanner::new(&source);
+            let scanner = Scanner::new(&source);
             let tokens = scanner.scan_tokens().unwrap();
             let parser = Parser::new(&tokens);
             let stmts = parser.parse().unwrap();
@@ -271,7 +271,7 @@ mod test {
 
         for source in positive_cases {
             let source = format!("print {}", source);
-            let mut scanner = Scanner::new(&source);
+            let scanner = Scanner::new(&source);
             let tokens = scanner.scan_tokens().unwrap();
             let parser = Parser::new(&tokens);
             let stmts = parser.parse().unwrap();
@@ -295,7 +295,7 @@ mod test {
 
         for (source, expected) in test_cases {
             let source = format!("print {}", source);
-            let mut scanner = Scanner::new(&source);
+            let scanner = Scanner::new(&source);
             let tokens = scanner.scan_tokens().unwrap();
             let parser = Parser::new(&tokens);
             let stmts = parser.parse().unwrap();
@@ -309,7 +309,7 @@ mod test {
     fn plus_concatenates_strings() {
         let source = "print \"foo\" + \"bar\";";
 
-        let mut scanner = Scanner::new(source);
+        let scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens().unwrap();
         let parser = Parser::new(&tokens);
         let stmts = parser.parse().unwrap();
@@ -333,7 +333,7 @@ mod test {
 
         for (source, expected) in test_cases {
             let source = format!("print {}", source);
-            let mut scanner = Scanner::new(&source);
+            let scanner = Scanner::new(&source);
             let tokens = scanner.scan_tokens().unwrap();
             let parser = Parser::new(&tokens);
             let stmts = parser.parse().unwrap();
@@ -370,7 +370,7 @@ mod test {
 
         for (source, expected) in test_cases {
             let source = format!("print {}", source);
-            let mut scanner = Scanner::new(&source);
+            let scanner = Scanner::new(&source);
             let tokens = scanner.scan_tokens().unwrap();
             let parser = Parser::new(&tokens);
             let stmts = parser.parse().unwrap();

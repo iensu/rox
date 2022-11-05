@@ -3,8 +3,8 @@ use crate::token;
 #[derive(PartialEq, Debug)]
 pub enum Expr<'a> {
     Literal(&'a token::Value),
-    Unary(&'a token::Token, Box<Expr<'a>>),
-    Binary(Box<Expr<'a>>, &'a token::Token, Box<Expr<'a>>),
+    Unary(&'a token::Token<'a>, Box<Expr<'a>>),
+    Binary(Box<Expr<'a>>, &'a token::Token<'a>, Box<Expr<'a>>),
     Grouping(Box<Expr<'a>>),
 }
 
