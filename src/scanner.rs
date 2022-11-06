@@ -353,7 +353,7 @@ mod test {
                     } else {
                         &source[*start..*end]
                     };
-                    Token::new(*token_type, lexeme.into(), L::Null, 1, *start)
+                    Token::new(*token_type, lexeme, L::Null, 1, *start)
                 })
                 .collect::<Vec<Token>>();
 
@@ -370,14 +370,14 @@ mod test {
 "
         .trim();
         let expected = vec![
-            Token::new(STAR, "*".into(), L::Null, 1, 0),
-            Token::new(LEFT_PAREN, "(".into(), L::Null, 1, 2),
-            Token::new(RIGHT_PAREN, ")".into(), L::Null, 1, 3),
-            Token::new(LEFT_BRACE, "{".into(), L::Null, 1, 5),
-            Token::new(PLUS, "+".into(), L::Null, 2, 2),
-            Token::new(RIGHT_BRACE, "}".into(), L::Null, 3, 0),
-            Token::new(SEMICOLON, ";".into(), L::Null, 3, 1),
-            Token::new(EOF, "".into(), L::Null, 3, 2),
+            Token::new(STAR, tokens::STAR, L::Null, 1, 0),
+            Token::new(LEFT_PAREN, tokens::LEFT_PAREN, L::Null, 1, 2),
+            Token::new(RIGHT_PAREN, tokens::RIGHT_PAREN, L::Null, 1, 3),
+            Token::new(LEFT_BRACE, tokens::LEFT_BRACE, L::Null, 1, 5),
+            Token::new(PLUS, tokens::PLUS, L::Null, 2, 2),
+            Token::new(RIGHT_BRACE, tokens::RIGHT_BRACE, L::Null, 3, 0),
+            Token::new(SEMICOLON, tokens::SEMICOLON, L::Null, 3, 1),
+            Token::new(EOF, tokens::EOF, L::Null, 3, 2),
         ];
 
         let scanner = Scanner::new(source);
@@ -392,22 +392,22 @@ mod test {
             (
                 "1",
                 vec![
-                    Token::new(NUMBER, "1".into(), L::Number(1.), 1, 0),
-                    Token::new(EOF, "".into(), L::Null, 1, 1),
+                    Token::new(NUMBER, "1", L::Number(1.), 1, 0),
+                    Token::new(EOF, "", L::Null, 1, 1),
                 ],
             ),
             (
                 "42",
                 vec![
-                    Token::new(NUMBER, "42".into(), L::Number(42.), 1, 0),
-                    Token::new(EOF, "".into(), L::Null, 1, 2),
+                    Token::new(NUMBER, "42", L::Number(42.), 1, 0),
+                    Token::new(EOF, "", L::Null, 1, 2),
                 ],
             ),
             (
                 "3.14",
                 vec![
-                    Token::new(NUMBER, "3.14".into(), L::Number(3.14), 1, 0),
-                    Token::new(EOF, "".into(), L::Null, 1, 4),
+                    Token::new(NUMBER, "3.14", L::Number(3.14), 1, 0),
+                    Token::new(EOF, "", L::Null, 1, 4),
                 ],
             ),
         ];
@@ -424,12 +424,12 @@ mod test {
         let test_cases = vec![(
             "1000 + 1000000 = 1001000",
             vec![
-                Token::new(NUMBER, "1000".into(), L::Number(1000.), 1, 0),
-                Token::new(PLUS, "+".into(), L::Null, 1, 5),
-                Token::new(NUMBER, "1000000".into(), L::Number(1000000.), 1, 7),
-                Token::new(EQUAL, "=".into(), L::Null, 1, 15),
-                Token::new(NUMBER, "1001000".into(), L::Number(1001000.), 1, 17),
-                Token::new(EOF, "".into(), L::Null, 1, 24),
+                Token::new(NUMBER, "1000", L::Number(1000.), 1, 0),
+                Token::new(PLUS, "+", L::Null, 1, 5),
+                Token::new(NUMBER, "1000000", L::Number(1000000.), 1, 7),
+                Token::new(EQUAL, "=", L::Null, 1, 15),
+                Token::new(NUMBER, "1001000", L::Number(1001000.), 1, 17),
+                Token::new(EOF, "", L::Null, 1, 24),
             ],
         )];
 
@@ -445,14 +445,8 @@ mod test {
         let test_cases = vec![(
             "\"a string\"",
             vec![
-                Token::new(
-                    STRING,
-                    "\"a string\"".into(),
-                    L::String("a string".into()),
-                    1,
-                    0,
-                ),
-                Token::new(EOF, "".into(), L::Null, 1, 10),
+                Token::new(STRING, "\"a string\"", L::String("a string".into()), 1, 0),
+                Token::new(EOF, "", L::Null, 1, 10),
             ],
         )];
 
@@ -474,8 +468,7 @@ string\"",
                     STRING,
                     "\"a
 multiline
-string\""
-                        .into(),
+string\"",
                     L::String(
                         "a
 multiline
@@ -485,7 +478,7 @@ string"
                     1,
                     0,
                 ),
-                Token::new(EOF, "".into(), L::Null, 3, 7),
+                Token::new(EOF, "", L::Null, 3, 7),
             ],
         )];
 
@@ -502,8 +495,8 @@ string"
             (
                 "foo",
                 vec![
-                    Token::new(IDENTIFIER, "foo".into(), L::Identifier("foo".into()), 1, 0),
-                    Token::new(EOF, "".into(), L::Null, 1, 3),
+                    Token::new(IDENTIFIER, "foo", L::Identifier(String::from("foo")), 1, 0),
+                    Token::new(EOF, "", L::Null, 1, 3),
                 ],
             ),
             (
@@ -511,12 +504,12 @@ string"
                 vec![
                     Token::new(
                         IDENTIFIER,
-                        "another_example".into(),
-                        L::Identifier("another_example".into()),
+                        "another_example",
+                        L::Identifier(String::from("another_example")),
                         1,
                         0,
                     ),
-                    Token::new(EOF, "".into(), L::Null, 1, 15),
+                    Token::new(EOF, "", L::Null, 1, 15),
                 ],
             ),
             (
@@ -524,12 +517,12 @@ string"
                 vec![
                     Token::new(
                         IDENTIFIER,
-                        "abc123".into(),
-                        L::Identifier("abc123".into()),
+                        "abc123",
+                        L::Identifier(String::from("abc123")),
                         1,
                         0,
                     ),
-                    Token::new(EOF, "".into(), L::Null, 1, 6),
+                    Token::new(EOF, "", L::Null, 1, 6),
                 ],
             ),
         ];
@@ -564,8 +557,8 @@ string"
 
         for (source, keyword, literal, start, end) in test_cases {
             let expected = vec![
-                Token::new(keyword, source.into(), literal, 1, start),
-                Token::new(EOF, "".into(), L::Null, 1, end),
+                Token::new(keyword, source, literal, 1, start),
+                Token::new(EOF, "", L::Null, 1, end),
             ];
             let scanner = Scanner::new(source);
             let tokens = scanner.scan_tokens().unwrap();
@@ -583,18 +576,18 @@ string"
         assert_eq!(
             tokens,
             vec![
-                Token::new(VAR, "var".into(), L::Keyword(tokens::VAR), 1, 0),
-                Token::new(IDENTIFIER, "x".into(), L::Identifier("x".into()), 1, 4),
-                Token::new(EQUAL, "=".into(), L::Null, 1, 6),
-                Token::new(NUMBER, "42".into(), L::Number(42.), 1, 8),
-                Token::new(SLASH, "/".into(), L::Null, 1, 11),
-                Token::new(LEFT_PAREN, "(".into(), L::Null, 1, 13),
-                Token::new(NUMBER, "20".into(), L::Number(20.), 1, 14),
-                Token::new(PLUS, "+".into(), L::Null, 1, 17),
-                Token::new(NUMBER, "22".into(), L::Number(22.), 1, 19),
-                Token::new(RIGHT_PAREN, ")".into(), L::Null, 1, 21),
-                Token::new(SEMICOLON, ";".into(), L::Null, 1, 22),
-                Token::new(EOF, "".into(), L::Null, 1, 23),
+                Token::new(VAR, "var", L::Keyword(tokens::VAR), 1, 0),
+                Token::new(IDENTIFIER, "x", L::Identifier(String::from("x")), 1, 4),
+                Token::new(EQUAL, "=", L::Null, 1, 6),
+                Token::new(NUMBER, "42", L::Number(42.), 1, 8),
+                Token::new(SLASH, "/", L::Null, 1, 11),
+                Token::new(LEFT_PAREN, "(", L::Null, 1, 13),
+                Token::new(NUMBER, "20", L::Number(20.), 1, 14),
+                Token::new(PLUS, "+", L::Null, 1, 17),
+                Token::new(NUMBER, "22", L::Number(22.), 1, 19),
+                Token::new(RIGHT_PAREN, ")", L::Null, 1, 21),
+                Token::new(SEMICOLON, ";", L::Null, 1, 22),
+                Token::new(EOF, "", L::Null, 1, 23),
             ]
         );
     }
@@ -612,25 +605,25 @@ fun square(x) {
         let tokens = scanner.scan_tokens().unwrap();
 
         let expected = vec![
-            Token::new(FUN, "fun".into(), L::Keyword(tokens::FUN), 1, 0),
+            Token::new(FUN, "fun", L::Keyword(tokens::FUN), 1, 0),
             Token::new(
                 IDENTIFIER,
-                "square".into(),
-                L::Identifier("square".into()),
+                "square",
+                L::Identifier(String::from("square")),
                 1,
                 4,
             ),
-            Token::new(LEFT_PAREN, "(".into(), L::Null, 1, 10),
-            Token::new(IDENTIFIER, "x".into(), L::Identifier("x".into()), 1, 11),
-            Token::new(RIGHT_PAREN, ")".into(), L::Null, 1, 12),
-            Token::new(LEFT_BRACE, "{".into(), L::Null, 1, 14),
-            Token::new(RETURN, "return".into(), L::Keyword(tokens::RETURN), 2, 2),
-            Token::new(IDENTIFIER, "x".into(), L::Identifier("x".into()), 2, 9),
-            Token::new(STAR, "*".into(), L::Null, 2, 11),
-            Token::new(IDENTIFIER, "x".into(), L::Identifier("x".into()), 2, 13),
-            Token::new(SEMICOLON, ";".into(), L::Null, 2, 14),
-            Token::new(RIGHT_BRACE, "}".into(), L::Null, 3, 0),
-            Token::new(EOF, "".into(), L::Null, 3, 1),
+            Token::new(LEFT_PAREN, "(", L::Null, 1, 10),
+            Token::new(IDENTIFIER, "x", L::Identifier(String::from("x")), 1, 11),
+            Token::new(RIGHT_PAREN, ")", L::Null, 1, 12),
+            Token::new(LEFT_BRACE, "{", L::Null, 1, 14),
+            Token::new(RETURN, "return", L::Keyword(tokens::RETURN), 2, 2),
+            Token::new(IDENTIFIER, "x", L::Identifier(String::from("x")), 2, 9),
+            Token::new(STAR, "*", L::Null, 2, 11),
+            Token::new(IDENTIFIER, "x", L::Identifier(String::from("x")), 2, 13),
+            Token::new(SEMICOLON, ";", L::Null, 2, 14),
+            Token::new(RIGHT_BRACE, "}", L::Null, 3, 0),
+            Token::new(EOF, "", L::Null, 3, 1),
         ];
 
         assert_eq!(tokens, expected);
