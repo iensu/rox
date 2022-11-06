@@ -24,7 +24,7 @@
           };
 
           devShell = with pkgs; mkShell {
-            buildInputs = [ cargo rustc rustfmt rust-analyzer pre-commit rustPackages.clippy ];
+            buildInputs = [ cargo rustc rustfmt rust-analyzer rustPackages.clippy ];
             RUST_SRC_PATH = rustPlatform.rustLibSrc;
             RUST_LOG = "debug";
           };
