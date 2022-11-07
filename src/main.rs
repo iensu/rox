@@ -8,6 +8,7 @@ use log::debug;
 mod error;
 mod expression;
 mod interpreter;
+mod macros;
 mod parser;
 mod scanner;
 mod token;

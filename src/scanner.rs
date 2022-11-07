@@ -261,7 +261,6 @@ mod test {
     use super::TokenType::*;
     use super::Value as L;
     use super::*;
-    use crate::token::tokens;
 
     use test_log::test;
 
@@ -296,7 +295,7 @@ mod test {
                 .unwrap_or_else(|_| panic!("Failed to scan token '{source}'"));
             let expected = vec![
                 Token::new(token_type, source, L::Null, 1, 0),
-                Token::new(EOF, tokens::EOF, L::Null, 1, source.len()),
+                Token::new(EOF, EOF.as_str().unwrap(), L::Null, 1, source.len()),
             ];
 
             assert_eq!(tokens, expected);
@@ -370,14 +369,14 @@ mod test {
 "
         .trim();
         let expected = vec![
-            Token::new(STAR, tokens::STAR, L::Null, 1, 0),
-            Token::new(LEFT_PAREN, tokens::LEFT_PAREN, L::Null, 1, 2),
-            Token::new(RIGHT_PAREN, tokens::RIGHT_PAREN, L::Null, 1, 3),
-            Token::new(LEFT_BRACE, tokens::LEFT_BRACE, L::Null, 1, 5),
-            Token::new(PLUS, tokens::PLUS, L::Null, 2, 2),
-            Token::new(RIGHT_BRACE, tokens::RIGHT_BRACE, L::Null, 3, 0),
-            Token::new(SEMICOLON, tokens::SEMICOLON, L::Null, 3, 1),
-            Token::new(EOF, tokens::EOF, L::Null, 3, 2),
+            Token::new(STAR, STAR.as_str().unwrap(), L::Null, 1, 0),
+            Token::new(LEFT_PAREN, LEFT_PAREN.as_str().unwrap(), L::Null, 1, 2),
+            Token::new(RIGHT_PAREN, RIGHT_PAREN.as_str().unwrap(), L::Null, 1, 3),
+            Token::new(LEFT_BRACE, LEFT_BRACE.as_str().unwrap(), L::Null, 1, 5),
+            Token::new(PLUS, PLUS.as_str().unwrap(), L::Null, 2, 2),
+            Token::new(RIGHT_BRACE, RIGHT_BRACE.as_str().unwrap(), L::Null, 3, 0),
+            Token::new(SEMICOLON, SEMICOLON.as_str().unwrap(), L::Null, 3, 1),
+            Token::new(EOF, EOF.as_str().unwrap(), L::Null, 3, 2),
         ];
 
         let scanner = Scanner::new(source);
@@ -537,22 +536,22 @@ string"
     #[test]
     fn keywords_are_parsed_correctly() {
         let test_cases = vec![
-            ("and", AND, L::Keyword(tokens::AND), 0, 3),
-            ("class", CLASS, L::Keyword(tokens::CLASS), 0, 5),
-            ("else", ELSE, L::Keyword(tokens::ELSE), 0, 4),
+            ("and", AND, L::Keyword(AND.as_str().unwrap()), 0, 3),
+            ("class", CLASS, L::Keyword(CLASS.as_str().unwrap()), 0, 5),
+            ("else", ELSE, L::Keyword(ELSE.as_str().unwrap()), 0, 4),
             ("false", FALSE, L::Bool(false), 0, 5),
-            ("fun", FUN, L::Keyword(tokens::FUN), 0, 3),
-            ("for", FOR, L::Keyword(tokens::FOR), 0, 3),
-            ("if", IF, L::Keyword(tokens::IF), 0, 2),
+            ("fun", FUN, L::Keyword(FUN.as_str().unwrap()), 0, 3),
+            ("for", FOR, L::Keyword(FOR.as_str().unwrap()), 0, 3),
+            ("if", IF, L::Keyword(IF.as_str().unwrap()), 0, 2),
             ("nil", NIL, L::Null, 0, 3),
-            ("or", OR, L::Keyword(tokens::OR), 0, 2),
-            ("print", PRINT, L::Keyword(tokens::PRINT), 0, 5),
-            ("return", RETURN, L::Keyword(tokens::RETURN), 0, 6),
-            ("super", SUPER, L::Keyword(tokens::SUPER), 0, 5),
-            ("this", THIS, L::Keyword(tokens::THIS), 0, 4),
+            ("or", OR, L::Keyword(OR.as_str().unwrap()), 0, 2),
+            ("print", PRINT, L::Keyword(PRINT.as_str().unwrap()), 0, 5),
+            ("return", RETURN, L::Keyword(RETURN.as_str().unwrap()), 0, 6),
+            ("super", SUPER, L::Keyword(SUPER.as_str().unwrap()), 0, 5),
+            ("this", THIS, L::Keyword(THIS.as_str().unwrap()), 0, 4),
             ("true", TRUE, L::Bool(true), 0, 4),
-            ("var", VAR, L::Keyword(tokens::VAR), 0, 3),
-            ("while", WHILE, L::Keyword(tokens::WHILE), 0, 5),
+            ("var", VAR, L::Keyword(VAR.as_str().unwrap()), 0, 3),
+            ("while", WHILE, L::Keyword(WHILE.as_str().unwrap()), 0, 5),
         ];
 
         for (source, keyword, literal, start, end) in test_cases {
@@ -576,7 +575,7 @@ string"
         assert_eq!(
             tokens,
             vec![
-                Token::new(VAR, "var", L::Keyword(tokens::VAR), 1, 0),
+                Token::new(VAR, "var", L::Keyword(VAR.as_str().unwrap()), 1, 0),
                 Token::new(IDENTIFIER, "x", L::Identifier(String::from("x")), 1, 4),
                 Token::new(EQUAL, "=", L::Null, 1, 6),
                 Token::new(NUMBER, "42", L::Number(42.), 1, 8),
@@ -605,7 +604,7 @@ fun square(x) {
         let tokens = scanner.scan_tokens().unwrap();
 
         let expected = vec![
-            Token::new(FUN, "fun", L::Keyword(tokens::FUN), 1, 0),
+            Token::new(FUN, "fun", L::Keyword(FUN.as_str().unwrap()), 1, 0),
             Token::new(
                 IDENTIFIER,
                 "square",
@@ -617,7 +616,7 @@ fun square(x) {
             Token::new(IDENTIFIER, "x", L::Identifier(String::from("x")), 1, 11),
             Token::new(RIGHT_PAREN, ")", L::Null, 1, 12),
             Token::new(LEFT_BRACE, "{", L::Null, 1, 14),
-            Token::new(RETURN, "return", L::Keyword(tokens::RETURN), 2, 2),
+            Token::new(RETURN, "return", L::Keyword(RETURN.as_str().unwrap()), 2, 2),
             Token::new(IDENTIFIER, "x", L::Identifier(String::from("x")), 2, 9),
             Token::new(STAR, "*", L::Null, 2, 11),
             Token::new(IDENTIFIER, "x", L::Identifier(String::from("x")), 2, 13),
