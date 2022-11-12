@@ -27,6 +27,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&'a self) -> Result<Vec<Stmt<'a>>> {
+        trace!("parse: entering");
         let mut statements = vec![];
 
         while !self.match_next(&[EOF]) {
@@ -38,6 +39,7 @@ impl<'a> Parser<'a> {
     }
 
     fn print_statement(&'a self) -> Result<Stmt<'a>> {
+        trace!("print_statement: entering");
         if self.match_next(&[PRINT]) {
             self.advance()?;
             let expr = self.expression()?;
@@ -50,102 +52,111 @@ impl<'a> Parser<'a> {
     }
 
     fn expression_statement(&'a self) -> Result<Stmt<'a>> {
+        trace!("expression_statement: entering");
         let expr = self.expression()?;
         self.verify_end_of_statement()?;
         Ok(Stmt::Expression(Box::new(expr)))
     }
 
     fn expression(&'a self) -> Result<Expr<'a>> {
+        trace!("expression: entering");
         let expr = self.equality()?;
         trace!("expression: {expr}");
         Ok(expr)
     }
 
     fn equality(&'a self) -> Result<Expr<'a>> {
+        trace!("equality: entering");
         let mut expr = self.comparison()?;
 
         while self.match_next(&[BANG_EQUAL, EQUAL_EQUAL]) {
-            debug!("equality left: {expr:?}");
+            trace!("equality: left {expr:?}");
             let operator = self.advance()?;
-            debug!("equality operator: {operator:?}");
+            trace!("equality: operator {operator:?}");
             let right = self.term()?;
-            debug!("equality right: {right:?}");
+            trace!("equality: right {right:?}");
 
             expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+            debug!("equality: {expr}");
         }
 
-        trace!("equality: {expr}");
         Ok(expr)
     }
 
     fn comparison(&'a self) -> Result<Expr<'a>> {
+        trace!("comparison: entering");
         let mut expr = self.term()?;
 
         while self.match_next(&[GREATER, GREATER_EQUAL, LESS, LESS_EQUAL]) {
-            debug!("comparison left: {expr:?}");
+            trace!("comparison: left {expr:?}");
             let operator = self.advance()?;
-            debug!("comparison operator: {operator:?}");
+            trace!("comparison: operator {operator:?}");
             let right = self.term()?;
-            debug!("comparison right: {right:?}");
+            trace!("comparison: right {right:?}");
 
             expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+            debug!("comparison: {expr}");
         }
 
-        trace!("comparison: {expr}");
         Ok(expr)
     }
 
     fn term(&'a self) -> Result<Expr<'a>> {
+        trace!("term: entering");
         let mut expr = self.factor()?;
 
         while self.match_next(&[PLUS, MINUS]) {
-            debug!("term left: {expr:?}");
+            trace!("term: left {expr:?}");
             let operator = self.advance()?;
-            debug!("term operator: {operator:?}");
+            trace!("term: operator {operator:?}");
             let right = self.factor()?;
-            debug!("term right: {right:?}");
+            trace!("term: right {right:?}");
 
             expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+            debug!("term: {expr}");
         }
 
-        trace!("term: {expr}");
         Ok(expr)
     }
 
     fn factor(&'a self) -> Result<Expr<'a>> {
+        trace!("factor: entering");
         let mut expr = self.unary()?;
 
         while self.match_next(&[STAR, SLASH, CARET]) {
-            debug!("factor left: {expr:?}");
+            trace!("factor: left {expr:?}");
             let operator = self.advance()?;
-            debug!("factor operator: {operator:?}");
+            trace!("factor: operator {operator:?}");
             let right = self.unary()?;
-            debug!("factor right: {right:?}");
+            trace!("factor: right {right:?}");
 
             expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+            debug!("factor: {expr}");
         }
 
-        trace!("factor: {expr}");
         Ok(expr)
     }
 
     fn unary(&'a self) -> Result<Expr<'a>> {
+        trace!("unary: entering");
         let expr = if self.match_next(&[BANG, MINUS]) {
             let operator = self.advance()?;
-            debug!("unary operator: {operator:?}");
+            trace!("unary: operator {operator:?}");
             let right = self.unary()?;
-            debug!("unary right: {right:?}");
+            trace!("unary: right {right:?}");
 
-            Expr::Unary(operator, Box::new(right))
+            let expr = Expr::Unary(operator, Box::new(right));
+            debug!("unary: {expr}");
+            expr
         } else {
             self.primary()?
         };
 
-        trace!("unary: {expr}");
         Ok(expr)
     }
 
     fn primary(&'a self) -> Result<Expr<'a>> {
+        trace!("primary: entering");
         let token = self.advance()?;
 
         let expr = match token.token_type {
@@ -176,7 +187,7 @@ impl<'a> Parser<'a> {
             }
         };
 
-        trace!("primary: {expr}");
+        debug!("primary: {expr}");
         Ok(expr)
     }
 

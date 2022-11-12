@@ -6,6 +6,7 @@ use crate::{
 use std::cell::RefCell;
 
 use anyhow::Result;
+use log::{debug, trace};
 
 pub struct Interpreter<'a> {
     // FIXME: Should be able to do something more generic here
@@ -28,6 +29,7 @@ impl<'a> Interpreter<'a> {
 
     /// Interprets a list of statements.
     pub fn interpret(&self, stmts: &[Stmt]) -> Result<()> {
+        trace!("interpret: entering");
         for s in stmts {
             self.execute(s)?;
         }
@@ -35,13 +37,16 @@ impl<'a> Interpreter<'a> {
     }
 
     fn execute(&self, stmt: &Stmt) -> Result<()> {
+        debug!("execute: {stmt}");
         match stmt {
             Stmt::Expression(e) => {
-                self.evaluate(e)?;
+                let value = self.evaluate(e)?;
+                debug!("execute: result = {value}");
                 Ok(())
             }
             Stmt::Print(e) => {
                 let value = self.evaluate(e)?;
+                debug!("execute: result = {value}");
                 self.println(&value.to_string());
                 Ok(())
             }
@@ -173,6 +178,10 @@ impl<'a> Interpreter<'a> {
             }
             .into()),
         }
+        .map(|value| {
+            trace!("evaluate: result = {value}");
+            value
+        })
     }
 
     fn is_truthy(&self, value: &Value) -> bool {

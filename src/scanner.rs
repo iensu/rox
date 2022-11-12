@@ -2,6 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::str::Chars;
 
 use anyhow::Result;
+use log::{debug, trace};
 
 use crate::{
     error::ScanError,
@@ -68,6 +69,7 @@ impl<'a> Scanner<'a> {
     }
 
     fn scan_token(&'a self) -> Result<Option<Token>> {
+        trace!("scan_token: entering");
         use TokenType::*;
         let c = self.advance()?;
 
@@ -220,6 +222,12 @@ impl<'a> Scanner<'a> {
                 .into())
             }
         }
+        .map(|token_opt| {
+            token_opt.map(|token| {
+                debug!("scan_token: {token:?}");
+                token
+            })
+        })
     }
 
     fn newline(&self) {
