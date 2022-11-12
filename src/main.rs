@@ -19,7 +19,7 @@ fn main() -> Result<()> {
     let mut args = env::args();
 
     match args.len() {
-        n if n == 2 => run_file(args.nth(1).unwrap())?,
+        n if n == 2 => run_file(&args.nth(1).unwrap())?,
         n if n == 1 => run_prompt()?,
         _ => {
             eprintln!("Usage: rox [script]");
@@ -30,10 +30,10 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn run_file(file_path: String) -> Result<()> {
+fn run_file(file_path: &str) -> Result<()> {
     debug!("Reading file: {file_path}");
     let program = fs::read_to_string(file_path).expect("Failed to read file");
-    run(program, &Interpreter::new())?;
+    run(&program, &Interpreter::new())?;
 
     Ok(())
 }
@@ -52,7 +52,7 @@ fn run_prompt() -> Result<()> {
             break;
         }
 
-        let input = buffer.to_string().trim_end().to_string();
+        let input = buffer.trim_end();
 
         // Do not crash on error!
         if let Err(err) = run(input, &interpreter) {
@@ -65,7 +65,7 @@ fn run_prompt() -> Result<()> {
     Ok(())
 }
 
-fn run(program: String, interpreter: &Interpreter) -> Result<()> {
+fn run(program: &str, interpreter: &Interpreter) -> Result<()> {
     let scanner = scanner::Scanner::new(&program);
     let tokens = scanner.scan_tokens()?;
     let parser = parser::Parser::new(&tokens);
