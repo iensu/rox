@@ -24,6 +24,9 @@ pub enum RuntimeError {
 
     #[error("[{}:{}] Division by zero!", .pos.0, .pos.1)]
     DivisionByZero { pos: (usize, usize) },
+
+    #[error("[{}:{}] Undefined variable {}", .pos.0, .pos.1, .name)]
+    UndefinedVariable { pos: (usize, usize), name: String },
 }
 
 #[derive(Error, Debug)]

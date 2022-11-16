@@ -5,6 +5,7 @@ use anyhow::Result;
 use interpreter::Interpreter;
 use log::debug;
 
+mod environment;
 mod error;
 mod expression;
 mod interpreter;
