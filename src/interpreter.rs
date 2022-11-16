@@ -1,4 +1,5 @@
 use crate::{
+    environment::Environment,
     error::RuntimeError,
     expression::{Expr, Stmt},
     token::{TokenType::*, Value},
@@ -9,6 +10,7 @@ use anyhow::Result;
 use log::{debug, trace, warn};
 
 pub struct Interpreter<'a> {
+    env: Environment,
     // FIXME: Should be able to do something more generic here
     output_buffer: Option<RefCell<&'a mut String>>,
 }
@@ -16,6 +18,7 @@ pub struct Interpreter<'a> {
 impl<'a> Interpreter<'a> {
     pub fn new() -> Self {
         Self {
+            env: Environment::new(),
             output_buffer: None,
         }
     }
@@ -23,6 +26,7 @@ impl<'a> Interpreter<'a> {
     #[cfg(test)]
     pub fn with_buffer(output_buffer: &'a mut String) -> Self {
         Self {
+            env: Environment::new(),
             output_buffer: Some(RefCell::new(output_buffer)),
         }
     }
@@ -50,7 +54,16 @@ impl<'a> Interpreter<'a> {
                 self.println(&value.to_string());
                 Ok(())
             }
-            Stmt::VarDecl(_, _) => todo!(),
+            Stmt::VarDecl(name, initializer) => {
+                let value = match initializer {
+                    Some(expr) => self.evaluate(expr)?,
+                    None => Value::Null,
+                };
+
+                debug!("execute: var {} = {}", name.lexeme, value);
+                self.env.define(name.lexeme.to_string(), &value);
+                Ok(())
+            }
             Stmt::Null => {
                 warn!("execute: reached null statement");
                 Ok(())
@@ -182,7 +195,7 @@ impl<'a> Interpreter<'a> {
                 op: op.lexeme.to_string(),
             }
             .into()),
-            Expr::Variable(_) => todo!(),
+            Expr::Variable(value) => self.env.get(value),
         }
         .map(|value| {
             trace!("evaluate: result = {value}");

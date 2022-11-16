@@ -7,22 +7,25 @@ use crate::{
 
 use anyhow::Result;
 
-pub struct Environment<'a, 'b> {
-    values: RefCell<HashMap<&'a str, &'b Value>>,
+pub struct Environment {
+    values: RefCell<HashMap<String, Value>>,
 }
 
-impl<'a, 'b> Environment<'a, 'b> {
+impl<'a> Environment {
     pub fn new() -> Self {
         Self {
             values: RefCell::new(HashMap::new()),
         }
     }
 
-    pub fn define(&self, name: &'a str, value: &'b Value) {
-        let _ = self.values.borrow_mut().insert(name, value);
+    pub fn define(&self, name: String, value: &Value) {
+        let _ = self
+            .values
+            .borrow_mut()
+            .insert(name, self.copy_value(value));
     }
 
-    pub fn get(&self, name: &Token) -> Result<&'b Value> {
+    pub fn get(&self, name: &Token) -> Result<Value> {
         self.values
             .borrow()
             .get(name.lexeme)
@@ -33,7 +36,19 @@ impl<'a, 'b> Environment<'a, 'b> {
                 }
                 .into()
             })
-            .map(|&x| x)
+            .map(|v| self.copy_value(v))
+    }
+
+    // FIXME: This is plain stupid...
+    fn copy_value(&self, value: &Value) -> Value {
+        match value {
+            Value::Null => Value::Null,
+            Value::Bool(t) => Value::Bool(*t),
+            Value::Number(n) => Value::Number(*n),
+            Value::String(s) => Value::String(s.clone()),
+            Value::Identifier(s) => Value::Identifier(s.clone()),
+            Value::Keyword(kw) => Value::Keyword(kw),
+        }
     }
 }
 
@@ -47,9 +62,9 @@ mod test {
         let token = Token::new(IDENTIFIER, "x", Value::Null, 1, 1);
         let env = Environment::new();
 
-        env.define("x", &Value::Null);
+        env.define("x".into(), &Value::Null);
 
-        assert_eq!(env.get(&token).unwrap(), &Value::Null);
+        assert_eq!(env.get(&token).unwrap(), Value::Null);
     }
 
     #[test]
@@ -57,9 +72,9 @@ mod test {
         let token = Token::new(IDENTIFIER, "x", Value::String("foo".into()), 1, 1);
         let env = Environment::new();
 
-        env.define("x", &token.literal);
+        env.define("x".into(), &token.literal);
 
-        assert_eq!(env.get(&token).unwrap(), &token.literal);
+        assert_eq!(env.get(&token).unwrap(), token.literal);
     }
 
     #[test]
