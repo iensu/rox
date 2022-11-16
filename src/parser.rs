@@ -11,7 +11,7 @@ use crate::{
 
 use anyhow::Result;
 use itertools::PeekNth;
-use log::{debug, trace};
+use log::{debug, trace, warn};
 
 type TokenStream<'a> = PeekNth<Iter<'a, Token<'a>>>;
 
@@ -31,24 +31,65 @@ impl<'a> Parser<'a> {
         let mut statements = vec![];
 
         while !self.match_next(&[EOF]) {
-            let stmt = self.print_statement()?;
+            let stmt = self.declaration()?;
             statements.push(stmt);
         }
 
         Ok(statements)
     }
 
-    fn print_statement(&'a self) -> Result<Stmt<'a>> {
-        trace!("print_statement: entering");
+    fn declaration(&'a self) -> Result<Stmt<'a>> {
+        trace!("declaration: entering");
+        let result = if self.match_next(&[VAR]) {
+            self.advance()?;
+            self.var_declaration()
+        } else {
+            self.statement()
+        };
+
+        if let Err(e) = result {
+            warn!("declaration: error = {e}");
+            self.synchronize()?;
+            Ok(Stmt::Null)
+        } else {
+            result
+        }
+    }
+
+    fn var_declaration(&'a self) -> Result<Stmt<'a>> {
+        trace!("var_declaration: entering");
+        let token = self.consume(IDENTIFIER, "Expected variable name.")?;
+
+        let initializer = if self.match_next(&[EQUAL]) {
+            self.advance()?;
+            Some(self.expression()?)
+        } else {
+            None
+        };
+
+        self.consume(SEMICOLON, "Expected ';' after variable declaration.")?;
+
+        let var_decl = Stmt::VarDecl(token, initializer);
+        trace!("var_declaration: {var_decl}");
+
+        Ok(var_decl)
+    }
+
+    fn statement(&'a self) -> Result<Stmt<'a>> {
+        trace!("statement: entering");
         if self.match_next(&[PRINT]) {
             self.advance()?;
-            let expr = self.expression()?;
-            self.verify_end_of_statement()?;
-
-            Ok(Stmt::Print(Box::new(expr)))
+            self.print_statement()
         } else {
             self.expression_statement()
         }
+    }
+
+    fn print_statement(&'a self) -> Result<Stmt<'a>> {
+        trace!("print_statement: entering");
+        let expr = self.expression()?;
+        self.verify_end_of_statement()?;
+        Ok(Stmt::Print(Box::new(expr)))
     }
 
     fn expression_statement(&'a self) -> Result<Stmt<'a>> {
@@ -160,7 +201,8 @@ impl<'a> Parser<'a> {
         let token = self.advance()?;
 
         let expr = match token.token_type {
-            FALSE | TRUE | NIL | STRING | NUMBER | IDENTIFIER => Expr::Literal(&token.literal),
+            FALSE | TRUE | NIL | STRING | NUMBER => Expr::Literal(&token.literal),
+            IDENTIFIER => Expr::Variable(&token),
             LEFT_PAREN => {
                 let expr = self.expression()?;
 
@@ -243,6 +285,16 @@ impl<'a> Parser<'a> {
         self.tokens.borrow_mut().peek_nth(0).map_or(false, |t| {
             types.iter().any(|token_type| t.token_type == *token_type)
         })
+    }
+
+    /// Returns and consumes the next token if it is of type `token_type`.
+    fn consume(&self, token_type: TokenType, error_message: &'static str) -> Result<&'a Token> {
+        if self.match_next(&[token_type]) {
+            let token = self.advance().expect("Should have a token");
+            return Ok(token);
+        }
+
+        Err(anyhow::Error::msg(error_message))
     }
 }
 

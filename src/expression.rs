@@ -3,6 +3,7 @@ use crate::token;
 #[derive(PartialEq, Debug)]
 pub enum Expr<'a> {
     Literal(&'a token::Value),
+    Variable(&'a token::Token<'a>),
     Unary(&'a token::Token<'a>, Box<Expr<'a>>),
     Binary(Box<Expr<'a>>, &'a token::Token<'a>, Box<Expr<'a>>),
     Grouping(Box<Expr<'a>>),
@@ -23,6 +24,7 @@ impl<'a> std::fmt::Display for Expr<'a> {
             Expr::Unary(t, e) => write!(f, "{}{}", t.lexeme, e),
             Expr::Binary(l, op, r) => write!(f, "({} {} {})", op.lexeme, l, r),
             Expr::Grouping(e) => write!(f, "(group {})", e),
+            Expr::Variable(v) => write!(f, "{}", v.lexeme),
         }
     }
 }
@@ -30,6 +32,8 @@ impl<'a> std::fmt::Display for Expr<'a> {
 pub enum Stmt<'a> {
     Expression(Box<Expr<'a>>),
     Print(Box<Expr<'a>>),
+    VarDecl(&'a token::Token<'a>, Option<Expr<'a>>),
+    Null, // FIXME: Do we need this?
 }
 
 impl<'a> std::fmt::Display for Stmt<'a> {
@@ -37,6 +41,11 @@ impl<'a> std::fmt::Display for Stmt<'a> {
         match self {
             Stmt::Expression(e) => write!(f, "{};", e),
             Stmt::Print(e) => write!(f, "print {};", e),
+            Stmt::VarDecl(ident, expr) => match expr {
+                Some(e) => write!(f, "var {} = {};", ident.lexeme, e),
+                None => write!(f, "var {};", ident.lexeme),
+            },
+            Stmt::Null => write!(f, "<null statement>"),
         }
     }
 }

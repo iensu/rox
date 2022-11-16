@@ -6,7 +6,7 @@ use crate::{
 use std::cell::RefCell;
 
 use anyhow::Result;
-use log::{debug, trace};
+use log::{debug, trace, warn};
 
 pub struct Interpreter<'a> {
     // FIXME: Should be able to do something more generic here
@@ -48,6 +48,11 @@ impl<'a> Interpreter<'a> {
                 let value = self.evaluate(e)?;
                 debug!("execute: result = {value}");
                 self.println(&value.to_string());
+                Ok(())
+            }
+            Stmt::VarDecl(_, _) => todo!(),
+            Stmt::Null => {
+                warn!("execute: reached null statement");
                 Ok(())
             }
         }
@@ -177,6 +182,7 @@ impl<'a> Interpreter<'a> {
                 op: op.lexeme.to_string(),
             }
             .into()),
+            Expr::Variable(_) => todo!(),
         }
         .map(|value| {
             trace!("evaluate: result = {value}");
@@ -243,7 +249,7 @@ mod test {
 
     #[test]
     fn minus_unary_cannot_be_applied_to_non_numbers() {
-        let test_cases = ["-false;", "-\"foo\";", "-null;", "-true;", "-foo;"];
+        let test_cases = ["-false;", "-\"foo\";", "-nil;", "-true;"];
 
         for source in test_cases {
             let scanner = Scanner::new(source);
