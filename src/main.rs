@@ -67,7 +67,7 @@ fn run_prompt() -> Result<()> {
 }
 
 fn run(program: &str, interpreter: &Interpreter) -> Result<()> {
-    let scanner = scanner::Scanner::new(&program);
+    let scanner = scanner::Scanner::new(program);
     let tokens = scanner.scan_tokens()?;
     let parser = parser::Parser::new(&tokens);
     let statements = parser.parse()?;

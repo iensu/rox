@@ -202,7 +202,7 @@ impl<'a> Parser<'a> {
 
         let expr = match token.token_type {
             FALSE | TRUE | NIL | STRING | NUMBER => Expr::Literal(&token.literal),
-            IDENTIFIER => Expr::Variable(&token),
+            IDENTIFIER => Expr::Variable(token),
             LEFT_PAREN => {
                 let expr = self.expression()?;
 

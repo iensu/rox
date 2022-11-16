@@ -20,7 +20,7 @@ macro_rules! string_enum {
         impl $name {
             pub fn as_str(&self) -> Option<&'static str> {
                 match self {
-                    $(Self::$type => crate::string_enum! { @option $($repr)? },)+
+                    $(Self::$type => $crate::string_enum! { @option $($repr)? },)+
                 }
             }
 
