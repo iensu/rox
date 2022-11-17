@@ -19,10 +19,7 @@ impl<'a> Environment {
     }
 
     pub fn define(&self, name: String, value: &Value) {
-        let _ = self
-            .values
-            .borrow_mut()
-            .insert(name, self.copy_value(value));
+        let _ = self.values.borrow_mut().insert(name, value.clone());
     }
 
     pub fn get(&self, name: &Token) -> Result<Value> {
@@ -36,19 +33,7 @@ impl<'a> Environment {
                 }
                 .into()
             })
-            .map(|v| self.copy_value(v))
-    }
-
-    // FIXME: This is plain stupid...
-    fn copy_value(&self, value: &Value) -> Value {
-        match value {
-            Value::Null => Value::Null,
-            Value::Bool(t) => Value::Bool(*t),
-            Value::Number(n) => Value::Number(*n),
-            Value::String(s) => Value::String(s.clone()),
-            Value::Identifier(s) => Value::Identifier(s.clone()),
-            Value::Keyword(kw) => Value::Keyword(kw),
-        }
+            .map(|v| v.clone())
     }
 }
 

@@ -74,14 +74,7 @@ impl<'a> Interpreter<'a> {
     fn evaluate(&self, expr: &Expr) -> Result<Value> {
         match expr {
             // FIXME: Refactor Value to avoid cloning, or make the type clonable in a cheap way
-            Expr::Literal(v) => match v {
-                Value::Null => Ok(Value::Null),
-                Value::Bool(b) => Ok(Value::Bool(*b)),
-                Value::Number(n) => Ok(Value::Number(*n)),
-                Value::String(s) => Ok(Value::String(s.clone())),
-                Value::Identifier(s) => Ok(Value::String(s.clone())),
-                Value::Keyword(kw) => Ok(Value::Keyword(*kw)),
-            },
+            Expr::Literal(v) => Ok((*v).clone()),
 
             Expr::Grouping(g) => self.evaluate(g),
 

@@ -57,6 +57,19 @@ pub enum Value {
     Keyword(&'static str),
 }
 
+impl Clone for Value {
+    fn clone(&self) -> Self {
+        match self {
+            Value::Null => Self::Null,
+            Value::Bool(b) => Self::Bool(*b),
+            Value::Number(n) => Self::Number(*n),
+            Value::String(s) => Self::String(s.clone()),
+            Value::Identifier(s) => Self::Identifier(s.clone()),
+            Value::Keyword(kw) => Self::Keyword(kw),
+        }
+    }
+}
+
 impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
