@@ -39,15 +39,24 @@ fn run_file(file_path: &str) -> Result<()> {
     Ok(())
 }
 
+const HELP_TEXT: &str = "
+:?        Display help
+:v        List defined variables
+:q        Quit
+";
+
 fn run_prompt() -> Result<()> {
     let interpreter = Interpreter::new();
     let mut buffer = String::new();
 
-    println!("Rox prompt, hit ctrl-d to quit.");
+    println!("Rox prompt, hit ctrl-d to quit. Type :? for help.");
 
     loop {
+        buffer.clear();
+
         print!("> ");
         io::stdout().flush().unwrap();
+
         let bytes_read = io::stdin().read_line(&mut buffer)?;
         if bytes_read == 0 {
             break;
@@ -55,12 +64,23 @@ fn run_prompt() -> Result<()> {
 
         let input = buffer.trim_end();
 
+        if input.starts_with(":") {
+            match input {
+                ":?" => println!("{}", HELP_TEXT),
+                ":q" => break,
+                ":v" => println!("{}", interpreter.env),
+                _ => eprintln!(
+                    "Unknown command '{}', available commands:\n{}",
+                    input, HELP_TEXT
+                ),
+            }
+            continue;
+        }
+
         // Do not crash on error!
         if let Err(err) = run(input, &interpreter) {
             eprintln!("ERROR: {}", err)
         }
-
-        buffer.clear();
     }
 
     Ok(())

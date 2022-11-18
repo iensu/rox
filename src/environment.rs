@@ -11,7 +11,7 @@ pub struct Environment {
     values: RefCell<HashMap<String, Value>>,
 }
 
-impl<'a> Environment {
+impl Environment {
     pub fn new() -> Self {
         Self {
             values: RefCell::new(HashMap::new()),
@@ -34,6 +34,18 @@ impl<'a> Environment {
                 .into()
             })
             .map(|v| v.clone())
+    }
+}
+
+impl std::fmt::Display for Environment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let definitions: Vec<String> = self
+            .values
+            .borrow()
+            .iter()
+            .map(|(k, v)| format!("{k} => {v}"))
+            .collect();
+        write!(f, "{}", definitions.join("\n"))
     }
 }
 

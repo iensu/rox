@@ -10,7 +10,7 @@ use anyhow::Result;
 use log::{debug, trace, warn};
 
 pub struct Interpreter<'a> {
-    env: Environment,
+    pub env: Environment,
     // FIXME: Should be able to do something more generic here
     output_buffer: Option<RefCell<&'a mut String>>,
 }
