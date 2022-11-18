@@ -1,1 +1,13 @@
-print 1 * 2 + 3 * 4;
+// Here is a little Rox program
+
+var x = 12.0;
+var y = 30;
+
+// Addition works
+print x + y;
+
+var x = "foo";
+var y = "bar";
+
+// String concatenation works:
+print x + " + " + y + " = " + x + y;
