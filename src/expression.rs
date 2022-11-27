@@ -7,24 +7,18 @@ pub enum Expr<'a> {
     Unary(&'a token::Token<'a>, Box<Expr<'a>>),
     Binary(Box<Expr<'a>>, &'a token::Token<'a>, Box<Expr<'a>>),
     Grouping(Box<Expr<'a>>),
+    Assign(&'a token::Token<'a>, Box<Expr<'a>>),
 }
 
 impl<'a> std::fmt::Display for Expr<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use token::Value::*;
         match self {
-            Expr::Literal(literal) => match literal {
-                Null => write!(f, "null"),
-                Bool(b) => write!(f, "{b}"),
-                Number(n) => write!(f, "{n}"),
-                String(s) => write!(f, "\"{s}\""),
-                Identifier(i) => write!(f, "{i}"),
-                Keyword(s) => write!(f, "{s}"),
-            },
+            Expr::Literal(literal) => write!(f, "{}", literal),
             Expr::Unary(t, e) => write!(f, "{}{}", t.lexeme, e),
             Expr::Binary(l, op, r) => write!(f, "({} {} {})", op.lexeme, l, r),
             Expr::Grouping(e) => write!(f, "(group {})", e),
             Expr::Variable(v) => write!(f, "{}", v.lexeme),
+            Expr::Assign(t, e) => write!(f, "{} = {}", t.lexeme, e),
         }
     }
 }

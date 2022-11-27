@@ -96,7 +96,12 @@ impl<'a> Interpreter<'a> {
                 op: t.lexeme.to_string(),
             }
             .into()),
-
+            Expr::Assign(name, e) => {
+                let _ = self.env.get(&name)?; // Ensure variable has been declared
+                let value = self.evaluate(e)?;
+                self.env.define(name.lexeme.to_string(), &value);
+                Ok(Value::Void)
+            }
             Expr::Binary(left, op, right)
                 if [
                     MINUS,
@@ -401,6 +406,70 @@ mod test {
                 format!("{}", expected),
                 "Failed to evaluate {source}"
             );
+        }
+    }
+
+    #[test]
+    fn variable_declaration() {
+        let source = r#"
+var x = 12;
+var y;
+
+print x;
+print y;
+"#;
+        let expected = r#"
+12
+null
+"#;
+        let scanner = Scanner::new(&source);
+        let tokens = scanner.scan_tokens().unwrap();
+        let parser = Parser::new(&tokens);
+        let stmts = parser.parse().unwrap();
+        let output = interpret(&stmts).unwrap();
+
+        assert_eq!(output, expected.trim());
+    }
+
+    #[test]
+    fn variable_assignment() {
+        let source = r#"
+var x = 12;
+var y;
+
+x = 665;
+y = "new value";
+
+print x;
+print y;
+"#;
+        let expected = r#"
+665
+"new value"
+"#;
+        let scanner = Scanner::new(&source);
+        let tokens = scanner.scan_tokens().unwrap();
+        let parser = Parser::new(&tokens);
+        let stmts = parser.parse().unwrap();
+        let output = interpret(&stmts).unwrap();
+
+        assert_eq!(output, expected.trim());
+    }
+
+    #[test]
+    fn error_when_assigning_to_undeclared_variable() {
+        let source = r#"
+foo = "undeclared variable";
+"#;
+        let scanner = Scanner::new(&source);
+        let tokens = scanner.scan_tokens().unwrap();
+        let parser = Parser::new(&tokens);
+        let stmts = parser.parse().unwrap();
+        let err = interpret(&stmts).expect_err("should fail");
+
+        match err.downcast::<RuntimeError>().unwrap() {
+            RuntimeError::UndefinedVariable { name, .. } => assert_eq!(name, "foo"),
+            e => assert!(false, "Unexpected error: {e:?}"),
         }
     }
 }

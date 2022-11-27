@@ -101,8 +101,32 @@ impl<'a> Parser<'a> {
 
     fn expression(&'a self) -> Result<Expr<'a>> {
         trace!("expression: entering");
-        let expr = self.equality()?;
+        let expr = self.assignment()?;
         trace!("expression: {expr}");
+        Ok(expr)
+    }
+
+    fn assignment(&'a self) -> Result<Expr<'a>> {
+        trace!("assignment: entering");
+        let expr = self.equality()?;
+        if self.match_next(&[EQUAL]) {
+            let equals = self.advance()?;
+            let value = self.assignment()?;
+
+            return match expr {
+                Expr::Variable(name) => {
+                    let expr = Expr::Assign(name, Box::new(value));
+                    debug!("assignment: {expr}");
+                    Ok(expr)
+                }
+                _ => Err(ParseError::InvalidAssignmentTarget {
+                    pos: (equals.line, equals.column),
+                    lexeme: equals.lexeme.to_string(),
+                }
+                .into()),
+            };
+        }
+
         Ok(expr)
     }
 

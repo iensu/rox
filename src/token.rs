@@ -49,6 +49,7 @@ crate::string_enum! {
 
 #[derive(Debug, PartialEq)]
 pub enum Value {
+    Void,
     Null,
     Bool(bool),
     Number(f64),
@@ -60,6 +61,7 @@ pub enum Value {
 impl Clone for Value {
     fn clone(&self) -> Self {
         match self {
+            Value::Void => Value::Void,
             Value::Null => Self::Null,
             Value::Bool(b) => Self::Bool(*b),
             Value::Number(n) => Self::Number(*n),
@@ -73,6 +75,7 @@ impl Clone for Value {
 impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Value::Void => write!(f, "<void>"),
             Value::Null => write!(f, "null"),
             Value::Bool(b) => write!(f, "{b}"),
             Value::Number(n) => write!(f, "{n}"),

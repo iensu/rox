@@ -50,6 +50,9 @@ pub enum ParseError {
         lexeme: String,
         token_type: TokenType,
     },
+
+    #[error("[{}:{}] Invalid assignment target '{}'", .pos.0, .pos.1, .lexeme)]
+    InvalidAssignmentTarget { pos: (usize, usize), lexeme: String },
 }
 
 #[derive(Error, Debug)]
