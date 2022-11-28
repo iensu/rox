@@ -10,7 +10,7 @@ use anyhow::Result;
 use log::{debug, trace, warn};
 
 pub struct Interpreter<'a> {
-    pub env: Environment,
+    pub env: Environment<'a>,
     // FIXME: Should be able to do something more generic here
     output_buffer: Option<RefCell<&'a mut String>>,
 }
@@ -97,9 +97,8 @@ impl<'a> Interpreter<'a> {
             }
             .into()),
             Expr::Assign(name, e) => {
-                let _ = self.env.get(&name)?; // Ensure variable has been declared
                 let value = self.evaluate(e)?;
-                self.env.define(name.lexeme.to_string(), &value);
+                self.env.assign(&name, &value)?;
                 Ok(Value::Void)
             }
             Expr::Binary(left, op, right)
