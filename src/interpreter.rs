@@ -230,7 +230,7 @@ mod test {
 
     use test_log::test;
 
-    fn interpret(stmts: &[Stmt]) -> anyhow::Result<String> {
+    fn interpret_statements(stmts: &[Stmt]) -> anyhow::Result<String> {
         let mut buffer = String::new();
         let interpreter = Interpreter::with_buffer(&mut buffer);
 
@@ -239,6 +239,25 @@ mod test {
         let output = buffer.trim().to_string();
 
         Ok(output)
+    }
+
+    fn check(input: &str, expected: &str) {
+        let scanner = Scanner::new(input);
+        let tokens = scanner.scan_tokens().unwrap();
+        let parser = Parser::new(&tokens);
+        let stmts = parser.parse().unwrap();
+        let output = interpret_statements(&stmts).unwrap();
+
+        assert_eq!(output, expected.trim())
+    }
+
+    fn check_err(input: &str) -> anyhow::Error {
+        let scanner = Scanner::new(input);
+        let tokens = scanner.scan_tokens().unwrap();
+        let parser = Parser::new(&tokens);
+        let stmts = parser.parse().unwrap();
+
+        interpret_statements(&stmts).expect_err("{input} should fail")
     }
 
     #[test]
@@ -252,7 +271,7 @@ mod test {
 
         for v in values {
             let stmt = Stmt::Print(Box::new(Expr::Literal(&v)));
-            let output = interpret(&[stmt]).unwrap();
+            let output = interpret_statements(&[stmt]).unwrap();
 
             assert_eq!(output, v.to_string());
         }
@@ -263,16 +282,9 @@ mod test {
         let test_cases = ["-false;", "-\"foo\";", "-nil;", "-true;"];
 
         for source in test_cases {
-            let scanner = Scanner::new(source);
-            let tokens = scanner.scan_tokens().unwrap();
-            let parser = Parser::new(&tokens);
-            let stmts = parser.parse().unwrap();
-
-            let err = interpret(&stmts).expect_err("{source} should fail");
-
-            match err.downcast::<RuntimeError>().unwrap() {
+            match check_err(source).downcast::<RuntimeError>().unwrap() {
                 RuntimeError::UnaryOperatorError { .. } => assert!(true),
-                e => assert!(false, "Cannot apply minus to {source}: {e:?}"),
+                e => assert!(false, "Unexpected error: {e:?}"),
             }
         }
     }
@@ -282,27 +294,13 @@ mod test {
         let negative_cases = ["!\"\";", "!0;", "!1;", "!\"foo\";"];
 
         for source in negative_cases {
-            let source = format!("print {}", source);
-            let scanner = Scanner::new(&source);
-            let tokens = scanner.scan_tokens().unwrap();
-            let parser = Parser::new(&tokens);
-            let stmts = parser.parse().unwrap();
-            let output = interpret(&stmts).unwrap();
-
-            assert_eq!(output, "false");
+            check(&format!("print {}", source), "false");
         }
 
         let positive_cases = vec!["!false;", "!nil;"];
 
         for source in positive_cases {
-            let source = format!("print {}", source);
-            let scanner = Scanner::new(&source);
-            let tokens = scanner.scan_tokens().unwrap();
-            let parser = Parser::new(&tokens);
-            let stmts = parser.parse().unwrap();
-            let output = interpret(&stmts).unwrap();
-
-            assert_eq!(output, "true");
+            check(&format!("print {}", source), "true");
         }
     }
 
@@ -319,28 +317,13 @@ mod test {
         ];
 
         for (source, expected) in test_cases {
-            let source = format!("print {}", source);
-            let scanner = Scanner::new(&source);
-            let tokens = scanner.scan_tokens().unwrap();
-            let parser = Parser::new(&tokens);
-            let stmts = parser.parse().unwrap();
-            let output = interpret(&stmts).unwrap();
-
-            assert_eq!(output, format!("{}", expected));
+            check(&format!("print {}", source), &format!("{}", expected));
         }
     }
 
     #[test]
     fn plus_concatenates_strings() {
-        let source = "print \"foo\" + \"bar\";";
-
-        let scanner = Scanner::new(source);
-        let tokens = scanner.scan_tokens().unwrap();
-        let parser = Parser::new(&tokens);
-        let stmts = parser.parse().unwrap();
-        let output = interpret(&stmts).unwrap();
-
-        assert_eq!(output, "\"foobar\"", "Failed to evaluate {source}");
+        check(r#"print "foo" + "bar";"#, r#""foobar""#);
     }
 
     #[test]
@@ -357,18 +340,7 @@ mod test {
         ];
 
         for (source, expected) in test_cases {
-            let source = format!("print {}", source);
-            let scanner = Scanner::new(&source);
-            let tokens = scanner.scan_tokens().unwrap();
-            let parser = Parser::new(&tokens);
-            let stmts = parser.parse().unwrap();
-            let output = interpret(&stmts).unwrap();
-
-            assert_eq!(
-                output,
-                format!("{}", expected),
-                "Failed to evaluate {source}"
-            );
+            check(&format!("print {}", source), &format!("{}", expected));
         }
     }
 
@@ -394,18 +366,7 @@ mod test {
         ];
 
         for (source, expected) in test_cases {
-            let source = format!("print {}", source);
-            let scanner = Scanner::new(&source);
-            let tokens = scanner.scan_tokens().unwrap();
-            let parser = Parser::new(&tokens);
-            let stmts = parser.parse().unwrap();
-            let output = interpret(&stmts).unwrap();
-
-            assert_eq!(
-                output,
-                format!("{}", expected),
-                "Failed to evaluate {source}"
-            );
+            check(&format!("print {}", source), &format!("{}", expected));
         }
     }
 
@@ -422,13 +383,7 @@ print y;
 12
 null
 "#;
-        let scanner = Scanner::new(&source);
-        let tokens = scanner.scan_tokens().unwrap();
-        let parser = Parser::new(&tokens);
-        let stmts = parser.parse().unwrap();
-        let output = interpret(&stmts).unwrap();
-
-        assert_eq!(output, expected.trim());
+        check(source, expected);
     }
 
     #[test]
@@ -447,13 +402,7 @@ print y;
 665
 "new value"
 "#;
-        let scanner = Scanner::new(&source);
-        let tokens = scanner.scan_tokens().unwrap();
-        let parser = Parser::new(&tokens);
-        let stmts = parser.parse().unwrap();
-        let output = interpret(&stmts).unwrap();
-
-        assert_eq!(output, expected.trim());
+        check(source, expected);
     }
 
     #[test]
@@ -461,13 +410,7 @@ print y;
         let source = r#"
 foo = "undeclared variable";
 "#;
-        let scanner = Scanner::new(&source);
-        let tokens = scanner.scan_tokens().unwrap();
-        let parser = Parser::new(&tokens);
-        let stmts = parser.parse().unwrap();
-        let err = interpret(&stmts).expect_err("should fail");
-
-        match err.downcast::<RuntimeError>().unwrap() {
+        match check_err(source).downcast::<RuntimeError>().unwrap() {
             RuntimeError::UndefinedVariable { name, .. } => assert_eq!(name, "foo"),
             e => assert!(false, "Unexpected error: {e:?}"),
         }
