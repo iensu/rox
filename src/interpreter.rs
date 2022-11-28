@@ -414,4 +414,88 @@ foo = "undeclared variable";
             e => assert!(false, "Unexpected error: {e:?}"),
         }
     }
+
+    #[test]
+    fn block_scope_variable_does_not_leak() {
+        let source = r#"
+{
+  var x = "inner scope";
+}
+print x;
+"#;
+        match check_err(source).downcast::<RuntimeError>().unwrap() {
+            RuntimeError::UndefinedVariable { name, .. } => assert_eq!(name, "x"),
+            e => assert!(false, "Unexpected error: {e:?}"),
+        }
+    }
+
+    #[test]
+    fn block_scope_shadowing() {
+        let source = r#"
+var foo = "outer";
+{
+  var foo = "inner";
+  print foo;
+}
+print foo;
+"#;
+        let expected = r#"
+"inner"
+"outer"
+"#;
+        check(source, expected)
+    }
+
+    #[test]
+    fn block_scope_outer_scope_access() {
+        let source = r#"
+var global = "outer";
+{
+  var local = "inner";
+  print local + global;
+}
+"#;
+        check(source, r#""innerouter""#)
+    }
+
+    #[test]
+    fn nested_block_scopes() {
+        let source = r#"
+var a = 1;
+{
+  var a = 2;
+  {
+    var a = 3;
+    {
+      var a = 4;
+      print a;
+    }
+    print a;
+  }
+  print a;
+}
+print a;
+"#;
+        let expected = r#"
+4
+3
+2
+1
+"#;
+        check(source, expected);
+    }
+
+    #[test]
+    fn block_scope_assignment() {
+        let source = r#"
+var a = 1;
+
+{
+  a = 2;
+}
+
+print a;
+"#;
+        check(source, "2");
+    }
 }
