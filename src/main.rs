@@ -50,13 +50,18 @@ fn run_prompt() -> Result<()> {
     let interpreter = Interpreter::new();
     let environment = Environment::new();
     let mut buffer = String::new();
+    let mut nested_depth = 0;
 
     println!("Rox prompt, hit ctrl-d to quit. Type :? for help.");
 
     loop {
-        buffer.clear();
+        if nested_depth < 1 {
+            buffer.clear();
+            print!("> ");
+        } else {
+            print!(". ");
+        }
 
-        print!("> ");
         io::stdout().flush().unwrap();
 
         let bytes_read = io::stdin().read_line(&mut buffer)?;
@@ -65,6 +70,12 @@ fn run_prompt() -> Result<()> {
         }
 
         let input = buffer.trim_end();
+        nested_depth = input.chars().filter(|&c| c == '{').count()
+            - input.chars().filter(|&c| c == '}').count();
+
+        if nested_depth > 0 {
+            continue;
+        }
 
         if input.starts_with(":") {
             match input {
