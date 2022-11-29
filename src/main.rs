@@ -79,8 +79,14 @@ fn run_prompt() -> Result<()> {
             continue;
         }
 
+        let run_function = if input.ends_with(';') || input.ends_with('}') {
+            run
+        } else {
+            run_expression
+        };
+
         // Do not crash on error!
-        if let Err(err) = run(input, &interpreter, &environment) {
+        if let Err(err) = run_function(input, &interpreter, &environment) {
             eprintln!("ERROR: {}", err)
         }
     }
@@ -94,6 +100,18 @@ fn run(program: &str, interpreter: &Interpreter, env: &Environment) -> Result<()
     let parser = parser::Parser::new(&tokens);
     let statements = parser.parse()?;
     interpreter.interpret(&statements, env)?;
+
+    Ok(())
+}
+
+fn run_expression(program: &str, interpreter: &Interpreter, env: &Environment) -> Result<()> {
+    let scanner = scanner::Scanner::new(program);
+    let tokens = scanner.scan_tokens()?;
+    let parser = parser::Parser::new(&tokens);
+    let expression = parser.expression()?;
+    let result = interpreter.evaluate(&expression, env)?;
+
+    println!("{}", result);
 
     Ok(())
 }

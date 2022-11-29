@@ -75,7 +75,7 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn evaluate(&self, expr: &Expr, env: &Environment) -> Result<Value> {
+    pub fn evaluate(&self, expr: &Expr, env: &Environment) -> Result<Value> {
         match expr {
             // FIXME: Refactor Value to avoid cloning, or make the type clonable in a cheap way
             Expr::Literal(v) => Ok((*v).clone()),

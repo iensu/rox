@@ -115,7 +115,7 @@ impl<'a> Parser<'a> {
         Ok(Stmt::Expression(Box::new(expr)))
     }
 
-    fn expression(&'a self) -> Result<Expr<'a>> {
+    pub fn expression(&'a self) -> Result<Expr<'a>> {
         trace!("expression: entering");
         let expr = self.assignment()?;
         trace!("expression: {expr}");
