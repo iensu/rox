@@ -24,6 +24,7 @@ impl<'a> std::fmt::Display for Expr<'a> {
 }
 
 pub enum Stmt<'a> {
+    Block(Vec<Stmt<'a>>),
     Expression(Box<Expr<'a>>),
     Print(Box<Expr<'a>>),
     VarDecl(&'a token::Token<'a>, Option<Expr<'a>>),
@@ -33,6 +34,12 @@ pub enum Stmt<'a> {
 impl<'a> std::fmt::Display for Stmt<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Stmt::Block(stmts) => {
+                for stmt in stmts {
+                    write!(f, "{}", stmt)?;
+                }
+                Ok(())
+            }
             Stmt::Expression(e) => write!(f, "{};", e),
             Stmt::Print(e) => write!(f, "print {};", e),
             Stmt::VarDecl(ident, expr) => match expr {

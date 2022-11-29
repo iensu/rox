@@ -2,6 +2,7 @@ use std::io::Write;
 use std::{env, fs, io};
 
 use anyhow::Result;
+use environment::Environment;
 use interpreter::Interpreter;
 use log::debug;
 
@@ -34,7 +35,7 @@ fn main() -> Result<()> {
 fn run_file(file_path: &str) -> Result<()> {
     debug!("Reading file: {file_path}");
     let program = fs::read_to_string(file_path).expect("Failed to read file");
-    run(&program, &Interpreter::new())?;
+    run(&program, &Interpreter::new(), &Environment::new())?;
 
     Ok(())
 }
@@ -47,6 +48,7 @@ const HELP_TEXT: &str = "
 
 fn run_prompt() -> Result<()> {
     let interpreter = Interpreter::new();
+    let environment = Environment::new();
     let mut buffer = String::new();
 
     println!("Rox prompt, hit ctrl-d to quit. Type :? for help.");
@@ -68,7 +70,7 @@ fn run_prompt() -> Result<()> {
             match input {
                 ":?" => println!("{}", HELP_TEXT),
                 ":q" => break,
-                ":v" => println!("{}", interpreter.env),
+                ":v" => println!("{}", environment),
                 _ => eprintln!(
                     "Unknown command '{}', available commands:\n{}",
                     input, HELP_TEXT
@@ -78,7 +80,7 @@ fn run_prompt() -> Result<()> {
         }
 
         // Do not crash on error!
-        if let Err(err) = run(input, &interpreter) {
+        if let Err(err) = run(input, &interpreter, &environment) {
             eprintln!("ERROR: {}", err)
         }
     }
@@ -86,12 +88,12 @@ fn run_prompt() -> Result<()> {
     Ok(())
 }
 
-fn run(program: &str, interpreter: &Interpreter) -> Result<()> {
+fn run(program: &str, interpreter: &Interpreter, env: &Environment) -> Result<()> {
     let scanner = scanner::Scanner::new(program);
     let tokens = scanner.scan_tokens()?;
     let parser = parser::Parser::new(&tokens);
     let statements = parser.parse()?;
-    interpreter.interpret(&statements)?;
+    interpreter.interpret(&statements, env)?;
 
     Ok(())
 }

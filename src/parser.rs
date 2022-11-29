@@ -80,6 +80,9 @@ impl<'a> Parser<'a> {
         if self.match_next(&[PRINT]) {
             self.advance()?;
             self.print_statement()
+        } else if self.match_next(&[LEFT_BRACE]) {
+            self.advance()?;
+            Ok(Stmt::Block(self.block()?))
         } else {
             self.expression_statement()
         }
@@ -90,6 +93,19 @@ impl<'a> Parser<'a> {
         let expr = self.expression()?;
         self.verify_end_of_statement()?;
         Ok(Stmt::Print(Box::new(expr)))
+    }
+
+    fn block(&'a self) -> Result<Vec<Stmt<'a>>> {
+        let mut statements = Vec::new();
+
+        let mut end_of_block = self.match_next(&[RIGHT_BRACE, EOF]);
+        while !end_of_block {
+            statements.push(self.declaration()?);
+            end_of_block = self.match_next(&[RIGHT_BRACE, EOF]);
+        }
+
+        self.consume(RIGHT_BRACE, "Expect '}' after block.")?;
+        Ok(statements)
     }
 
     fn expression_statement(&'a self) -> Result<Stmt<'a>> {

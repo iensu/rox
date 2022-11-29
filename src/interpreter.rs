@@ -10,7 +10,6 @@ use anyhow::Result;
 use log::{debug, trace, warn};
 
 pub struct Interpreter<'a> {
-    pub env: Environment<'a>,
     // FIXME: Should be able to do something more generic here
     output_buffer: Option<RefCell<&'a mut String>>,
 }
@@ -18,7 +17,6 @@ pub struct Interpreter<'a> {
 impl<'a> Interpreter<'a> {
     pub fn new() -> Self {
         Self {
-            env: Environment::new(),
             output_buffer: None,
         }
     }
@@ -26,42 +24,48 @@ impl<'a> Interpreter<'a> {
     #[cfg(test)]
     pub fn with_buffer(output_buffer: &'a mut String) -> Self {
         Self {
-            env: Environment::new(),
             output_buffer: Some(RefCell::new(output_buffer)),
         }
     }
 
     /// Interprets a list of statements.
-    pub fn interpret(&self, stmts: &[Stmt]) -> Result<()> {
+    pub fn interpret(&self, stmts: &[Stmt], env: &Environment) -> Result<()> {
         trace!("interpret: entering");
         for s in stmts {
-            self.execute(s)?;
+            self.execute(s, env)?;
         }
         Ok(())
     }
 
-    fn execute(&self, stmt: &Stmt) -> Result<()> {
+    fn execute(&self, stmt: &Stmt, env: &Environment) -> Result<()> {
         debug!("execute: {stmt}");
         match stmt {
+            Stmt::Block(stmts) => {
+                let nested_env = Environment::new_inside(env);
+                for stmt in stmts {
+                    self.execute(stmt, &nested_env)?;
+                }
+                Ok(())
+            }
             Stmt::Expression(e) => {
-                let value = self.evaluate(e)?;
+                let value = self.evaluate(e, env)?;
                 debug!("execute: result = {value}");
                 Ok(())
             }
             Stmt::Print(e) => {
-                let value = self.evaluate(e)?;
+                let value = self.evaluate(e, env)?;
                 debug!("execute: result = {value}");
                 self.println(&value.to_string());
                 Ok(())
             }
             Stmt::VarDecl(name, initializer) => {
                 let value = match initializer {
-                    Some(expr) => self.evaluate(expr)?,
+                    Some(expr) => self.evaluate(expr, env)?,
                     None => Value::Null,
                 };
 
                 debug!("execute: var {} = {}", name.lexeme, value);
-                self.env.define(name.lexeme.to_string(), &value);
+                env.define(name.lexeme.to_string(), &value);
                 Ok(())
             }
             Stmt::Null => {
@@ -71,14 +75,14 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn evaluate(&self, expr: &Expr) -> Result<Value> {
+    fn evaluate(&self, expr: &Expr, env: &Environment) -> Result<Value> {
         match expr {
             // FIXME: Refactor Value to avoid cloning, or make the type clonable in a cheap way
             Expr::Literal(v) => Ok((*v).clone()),
 
-            Expr::Grouping(g) => self.evaluate(g),
+            Expr::Grouping(g) => self.evaluate(g, env),
 
-            Expr::Unary(t, e) if t.token_type == MINUS => match self.evaluate(e)? {
+            Expr::Unary(t, e) if t.token_type == MINUS => match self.evaluate(e, env)? {
                 Value::Number(n) => Ok(Value::Number(n * -1.)),
                 _ => Err(RuntimeError::UnaryOperatorError {
                     op: t.lexeme.to_string(),
@@ -88,7 +92,7 @@ impl<'a> Interpreter<'a> {
                 .into()),
             },
             Expr::Unary(t, e) if t.token_type == BANG => {
-                let value = !self.is_truthy(&self.evaluate(e)?);
+                let value = !self.is_truthy(&self.evaluate(e, env)?);
                 Ok(Value::Bool(value))
             }
             Expr::Unary(t, _) => Err(RuntimeError::UnknownOpError {
@@ -97,8 +101,8 @@ impl<'a> Interpreter<'a> {
             }
             .into()),
             Expr::Assign(name, e) => {
-                let value = self.evaluate(e)?;
-                self.env.assign(&name, &value)?;
+                let value = self.evaluate(e, env)?;
+                env.assign(&name, &value)?;
                 Ok(Value::Void)
             }
             Expr::Binary(left, op, right)
@@ -115,7 +119,7 @@ impl<'a> Interpreter<'a> {
                 .contains(&op.token_type) =>
             {
                 let (x, y) = if let (Value::Number(l), Value::Number(r)) =
-                    (self.evaluate(left)?, self.evaluate(right)?)
+                    (self.evaluate(left, env)?, self.evaluate(right, env)?)
                 {
                     (l, r)
                 } else {
@@ -154,8 +158,8 @@ impl<'a> Interpreter<'a> {
                 }
             }
             Expr::Binary(left, op, right) if [BANG_EQUAL, EQUAL_EQUAL].contains(&op.token_type) => {
-                let left = self.evaluate(left)?;
-                let right = self.evaluate(right)?;
+                let left = self.evaluate(left, env)?;
+                let right = self.evaluate(right, env)?;
                 match op.token_type {
                     EQUAL_EQUAL => match (left, right) {
                         (Value::Number(l), Value::Number(r)) => Ok(Value::Bool(l == r)),
@@ -175,7 +179,7 @@ impl<'a> Interpreter<'a> {
                 }
             }
             Expr::Binary(left, op, right) if op.token_type == PLUS => {
-                match (self.evaluate(left)?, self.evaluate(right)?) {
+                match (self.evaluate(left, env)?, self.evaluate(right, env)?) {
                     (Value::Number(l), Value::Number(r)) => Ok(Value::Number(l + r)),
                     (Value::String(l), Value::String(r)) => Ok(Value::String(format!("{l}{r}"))),
                     _ => Err(RuntimeError::BinaryOperatorError {
@@ -192,7 +196,7 @@ impl<'a> Interpreter<'a> {
                 op: op.lexeme.to_string(),
             }
             .into()),
-            Expr::Variable(value) => self.env.get(value),
+            Expr::Variable(value) => env.get(value),
         }
         .map(|value| {
             trace!("evaluate: result = {value}");
@@ -229,11 +233,11 @@ mod test {
 
     use test_log::test;
 
-    fn interpret_statements(stmts: &[Stmt]) -> anyhow::Result<String> {
+    fn interpret_statements(stmts: &[Stmt], env: &Environment) -> anyhow::Result<String> {
         let mut buffer = String::new();
         let interpreter = Interpreter::with_buffer(&mut buffer);
 
-        interpreter.interpret(stmts)?;
+        interpreter.interpret(stmts, env)?;
 
         let output = buffer.trim().to_string();
 
@@ -245,7 +249,8 @@ mod test {
         let tokens = scanner.scan_tokens().unwrap();
         let parser = Parser::new(&tokens);
         let stmts = parser.parse().unwrap();
-        let output = interpret_statements(&stmts).unwrap();
+        let env = Environment::new();
+        let output = interpret_statements(&stmts, &env).unwrap();
 
         assert_eq!(output, expected.trim())
     }
@@ -255,8 +260,8 @@ mod test {
         let tokens = scanner.scan_tokens().unwrap();
         let parser = Parser::new(&tokens);
         let stmts = parser.parse().unwrap();
-
-        interpret_statements(&stmts).expect_err("{input} should fail")
+        let env = Environment::new();
+        interpret_statements(&stmts, &env).expect_err("{input} should fail")
     }
 
     #[test]
@@ -270,7 +275,7 @@ mod test {
 
         for v in values {
             let stmt = Stmt::Print(Box::new(Expr::Literal(&v)));
-            let output = interpret_statements(&[stmt]).unwrap();
+            let output = interpret_statements(&[stmt], &Environment::new()).unwrap();
 
             assert_eq!(output, v.to_string());
         }
