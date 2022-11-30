@@ -83,6 +83,9 @@ impl<'a> Parser<'a> {
         } else if self.match_next(&[LEFT_BRACE]) {
             self.advance()?;
             Ok(Stmt::Block(self.block()?))
+        } else if self.match_next(&[IF]) {
+            self.advance()?;
+            self.if_statement()
         } else {
             self.expression_statement()
         }
@@ -93,6 +96,32 @@ impl<'a> Parser<'a> {
         let expr = self.expression()?;
         self.verify_end_of_statement()?;
         Ok(Stmt::Print(Box::new(expr)))
+    }
+
+    fn if_statement(&'a self) -> Result<Stmt<'a>> {
+        trace!("if_statement: entering");
+        self.consume(LEFT_PAREN, "Expect '(' after 'if'.")?;
+
+        let condition = self.expression()?;
+        trace!("if_statement: condition {condition}");
+
+        self.consume(RIGHT_PAREN, "Expect ')' after if condition")?;
+
+        let then_branch = self.statement()?;
+        trace!("if_statement: then {then_branch}");
+
+        let else_branch = if self.match_next(&[ELSE]) {
+            self.advance()?;
+            let stmt = self.statement()?;
+            trace!("if_statement: else {stmt}");
+            Some(Box::new(stmt))
+        } else {
+            None
+        };
+
+        let if_stmt = Stmt::If(Box::new(condition), Box::new(then_branch), else_branch);
+        debug!("if_statement: {if_stmt}");
+        Ok(if_stmt)
     }
 
     fn block(&'a self) -> Result<Vec<Stmt<'a>>> {
@@ -345,29 +374,26 @@ mod test {
 
     use test_log::test;
 
-    #[test]
-    fn parses_a_simple_expression() {
-        let source = "5 + 6;";
-        let scanner = Scanner::new(source);
+    fn check(input: &str, expected: &str) {
+        let scanner = Scanner::new(input);
         let tokens = scanner.scan_tokens().unwrap();
         let parser = Parser::new(&tokens);
         let stmts = parser.parse().unwrap();
 
-        assert_eq!(format!("{}", stmts.get(0).unwrap()), "(+ 5 6);");
+        assert_eq!(format!("{}", stmts.get(0).unwrap()), expected);
+    }
+
+    #[test]
+    fn parses_a_simple_expression() {
+        check("5 + 6;", "(+ 5 6);");
     }
 
     #[test]
     fn parses_a_more_complex_expression() {
         let source = "12 + 14 + 23 + 18;";
-        let scanner = Scanner::new(source);
-        let tokens = scanner.scan_tokens().unwrap();
-        let parser = Parser::new(&tokens);
-        let stmts = parser.parse().unwrap();
+        let expected = "(+ (+ (+ 12 14) 23) 18);";
 
-        assert_eq!(
-            format!("{}", stmts.get(0).unwrap()),
-            "(+ (+ (+ 12 14) 23) 18);"
-        );
+        check(source, expected);
     }
 
     #[test]
@@ -382,27 +408,16 @@ mod test {
         ];
 
         for (source, expected) in test_cases {
-            let scanner = Scanner::new(source);
-            let tokens = scanner.scan_tokens().unwrap();
-            let parser = Parser::new(&tokens);
-            let stmts = parser.parse().unwrap();
-
-            assert_eq!(format!("{}", stmts.get(0).unwrap()), expected);
+            check(source, expected);
         }
     }
 
     #[test]
     fn parses_grouped_expressions() {
         let source = "12 * (14 + 23) / 10;";
-        let scanner = Scanner::new(source);
-        let tokens = scanner.scan_tokens().unwrap();
-        let parser = Parser::new(&tokens);
-        let stmts = parser.parse().unwrap();
+        let expected = "(/ (* 12 (group (+ 14 23))) 10);";
 
-        assert_eq!(
-            format!("{}", stmts.get(0).unwrap()),
-            "(/ (* 12 (group (+ 14 23))) 10);"
-        );
+        check(source, expected);
     }
 
     #[test]
@@ -410,12 +425,23 @@ mod test {
         let test_cases = vec![("-1;", "-1;"), ("!x;", "!x;")];
 
         for (source, expected) in test_cases {
-            let scanner = Scanner::new(source);
-            let tokens = scanner.scan_tokens().unwrap();
-            let parser = Parser::new(&tokens);
-            let stmts = parser.parse().unwrap();
+            check(source, expected);
+        }
+    }
 
-            assert_eq!(format!("{}", stmts.get(0).unwrap()), expected);
+    #[test]
+    fn if_statements() {
+        let test_cases = vec![
+            ("if (true) 42;", "if (true) 42;"),
+            ("if (1 + 1 == 2) 42;", "if ((== (+ 1 1) 2)) 42;"),
+            (
+                r#"if (true) { print "yes"; } else { print "no"; }"#,
+                r#"if (true) { print "yes"; } else { print "no"; }"#,
+            ),
+        ];
+
+        for (source, expected) in test_cases {
+            check(source, expected);
         }
     }
 }

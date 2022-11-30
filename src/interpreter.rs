@@ -52,6 +52,16 @@ impl<'a> Interpreter<'a> {
                 debug!("execute: result = {value}");
                 Ok(())
             }
+            Stmt::If(condition, if_branch, else_branch) => {
+                let condition = self.evaluate(condition, env)?;
+                if self.is_truthy(&condition) {
+                    self.execute(if_branch, env)
+                } else if let Some(branch) = else_branch {
+                    self.execute(branch, env)
+                } else {
+                    Ok(())
+                }
+            }
             Stmt::Print(e) => {
                 let value = self.evaluate(e, env)?;
                 debug!("execute: result = {value}");
@@ -102,7 +112,7 @@ impl<'a> Interpreter<'a> {
             .into()),
             Expr::Assign(name, e) => {
                 let value = self.evaluate(e, env)?;
-                env.assign(&name, &value)?;
+                env.assign(name, &value)?;
                 Ok(Value::Void)
             }
             Expr::Binary(left, op, right)
@@ -502,5 +512,49 @@ var a = 1;
 print a;
 "#;
         check(source, "2");
+    }
+
+    #[test]
+    fn if_statement_with_truthy_condition() {
+        let source = r#"
+if (1 + 1 == 2) {
+  print "Truth";
+}
+"#;
+        check(source, r#""Truth""#);
+    }
+
+    #[test]
+    fn if_statement_with_falsy_condition() {
+        let source = r#"
+if (1 + 1 != 2) {
+  print "Truth";
+}
+"#;
+        check(source, "");
+    }
+
+    #[test]
+    fn if_statement_with_else_branch() {
+        let source = r#"
+if (1 + 1 == 2) {
+  print "Yes";
+} else {
+  print "No";
+}
+"#;
+        check(source, r#""Yes""#);
+    }
+
+    #[test]
+    fn if_statement_with_else_branch_and_falsy_condition() {
+        let source = r#"
+if (1 > 2) {
+  print "Yes";
+} else {
+  print "No";
+}
+"#;
+        check(source, r#""No""#);
     }
 }

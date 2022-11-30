@@ -26,6 +26,7 @@ impl<'a> std::fmt::Display for Expr<'a> {
 pub enum Stmt<'a> {
     Block(Vec<Stmt<'a>>),
     Expression(Box<Expr<'a>>),
+    If(Box<Expr<'a>>, Box<Stmt<'a>>, Option<Box<Stmt<'a>>>),
     Print(Box<Expr<'a>>),
     VarDecl(&'a token::Token<'a>, Option<Expr<'a>>),
     Null, // FIXME: Do we need this?
@@ -35,12 +36,21 @@ impl<'a> std::fmt::Display for Stmt<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Stmt::Block(stmts) => {
+                write!(f, "{{ ")?;
                 for stmt in stmts {
                     write!(f, "{}", stmt)?;
                 }
+                write!(f, " }}")?;
                 Ok(())
             }
             Stmt::Expression(e) => write!(f, "{};", e),
+            Stmt::If(condition, then_branch, else_branch) => {
+                write!(f, "if ({condition}) {then_branch}")?;
+                if let Some(branch) = else_branch {
+                    write!(f, " else {branch}")?;
+                }
+                Ok(())
+            }
             Stmt::Print(e) => write!(f, "print {};", e),
             Stmt::VarDecl(ident, expr) => match expr {
                 Some(e) => write!(f, "var {} = {};", ident.lexeme, e),

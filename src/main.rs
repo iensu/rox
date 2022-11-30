@@ -77,7 +77,7 @@ fn run_prompt() -> Result<()> {
             continue;
         }
 
-        if input.starts_with(":") {
+        if input.starts_with(':') {
             match input {
                 ":?" => println!("{}", HELP_TEXT),
                 ":q" => break,
