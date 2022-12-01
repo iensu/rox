@@ -2,23 +2,25 @@ use crate::token;
 
 #[derive(PartialEq, Debug)]
 pub enum Expr<'a> {
-    Literal(&'a token::Value),
-    Variable(&'a token::Token<'a>),
-    Unary(&'a token::Token<'a>, Box<Expr<'a>>),
+    Assign(&'a token::Token<'a>, Box<Expr<'a>>),
     Binary(Box<Expr<'a>>, &'a token::Token<'a>, Box<Expr<'a>>),
     Grouping(Box<Expr<'a>>),
-    Assign(&'a token::Token<'a>, Box<Expr<'a>>),
+    Literal(&'a token::Value),
+    Logic(Box<Expr<'a>>, &'a token::Token<'a>, Box<Expr<'a>>),
+    Unary(&'a token::Token<'a>, Box<Expr<'a>>),
+    Variable(&'a token::Token<'a>),
 }
 
 impl<'a> std::fmt::Display for Expr<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Expr::Literal(literal) => write!(f, "{}", literal),
-            Expr::Unary(t, e) => write!(f, "{}{}", t.lexeme, e),
+            Expr::Assign(t, e) => write!(f, "{} = {}", t.lexeme, e),
             Expr::Binary(l, op, r) => write!(f, "({} {} {})", op.lexeme, l, r),
             Expr::Grouping(e) => write!(f, "(group {})", e),
+            Expr::Literal(literal) => write!(f, "{}", literal),
+            Expr::Logic(l, op, r) => write!(f, "{l} {} {r}", op.lexeme),
+            Expr::Unary(t, e) => write!(f, "{}{}", t.lexeme, e),
             Expr::Variable(v) => write!(f, "{}", v.lexeme),
-            Expr::Assign(t, e) => write!(f, "{} = {}", t.lexeme, e),
         }
     }
 }

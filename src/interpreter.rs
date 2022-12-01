@@ -115,6 +115,22 @@ impl<'a> Interpreter<'a> {
                 env.assign(name, &value)?;
                 Ok(Value::Void)
             }
+            Expr::Logic(left, op, right) if [AND, OR].contains(&op.token_type) => {
+                let left = self.evaluate(left, env)?;
+
+                if op.token_type == OR && self.is_truthy(&left) {
+                    return Ok(left);
+                } else if op.token_type == AND && !self.is_truthy(&left) {
+                    return Ok(left);
+                }
+
+                self.evaluate(right, env)
+            }
+            Expr::Logic(_, op, _) => Err(RuntimeError::UnknownOpError {
+                pos: (op.line, op.column),
+                op: op.lexeme.to_string(),
+            }
+            .into()),
             Expr::Binary(left, op, right)
                 if [
                     MINUS,
@@ -262,7 +278,7 @@ mod test {
         let env = Environment::new();
         let output = interpret_statements(&stmts, &env).unwrap();
 
-        assert_eq!(output, expected.trim())
+        assert_eq!(output, expected.trim(), "INPUT: '{input}'")
     }
 
     fn check_err(input: &str) -> anyhow::Error {
@@ -395,7 +411,7 @@ print y;
 "#;
         let expected = r#"
 12
-null
+nil
 "#;
         check(source, expected);
     }
@@ -556,5 +572,27 @@ if (1 > 2) {
 }
 "#;
         check(source, r#""No""#);
+    }
+
+    #[test]
+    fn logical_operator_statements() {
+        let test_cases = [
+            ("print true and 1;", "1"),
+            ("print false or 1;", "1"),
+            ("print true and false or 1;", "1"),
+            ("print false and 1;", "false"),
+            ("print true or 1;", "true"),
+            ("print false or nil and 1;", "nil"),
+            ("print nil or false and 1;", "false"),
+            ("print nil and false or 1;", "1"),
+            ("print true and true and true and 1;", "1"),
+            ("print false and true and true and 1;", "false"),
+            ("print false or false or false or 1;", "1"),
+            ("print true or false or false or 1;", "true"),
+        ];
+
+        for (source, expected) in test_cases {
+            check(source, expected);
+        }
     }
 }

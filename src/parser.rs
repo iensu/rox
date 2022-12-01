@@ -153,7 +153,7 @@ impl<'a> Parser<'a> {
 
     fn assignment(&'a self) -> Result<Expr<'a>> {
         trace!("assignment: entering");
-        let expr = self.equality()?;
+        let expr = self.or()?;
         if self.match_next(&[EQUAL]) {
             let equals = self.advance()?;
             let value = self.assignment()?;
@@ -170,6 +170,34 @@ impl<'a> Parser<'a> {
                 }
                 .into()),
             };
+        }
+
+        Ok(expr)
+    }
+
+    fn or(&'a self) -> Result<Expr<'a>> {
+        trace!("or: entering");
+        let mut expr = self.and()?;
+
+        while self.match_next(&[OR]) {
+            let operator = self.advance()?;
+            let right = self.and()?;
+            expr = Expr::Logic(Box::new(expr), operator, Box::new(right));
+            debug!("or: {expr}");
+        }
+
+        Ok(expr)
+    }
+
+    fn and(&'a self) -> Result<Expr<'a>> {
+        trace!("and: entering");
+        let mut expr = self.equality()?;
+
+        while self.match_next(&[AND]) {
+            let operator = self.advance()?;
+            let right = self.equality()?;
+            expr = Expr::Logic(Box::new(expr), operator, Box::new(right));
+            debug!("and: {expr}");
         }
 
         Ok(expr)
@@ -438,6 +466,24 @@ mod test {
                 r#"if (true) { print "yes"; } else { print "no"; }"#,
                 r#"if (true) { print "yes"; } else { print "no"; }"#,
             ),
+        ];
+
+        for (source, expected) in test_cases {
+            check(source, expected);
+        }
+    }
+
+    #[test]
+    fn logic_expressions() {
+        let test_cases = vec![
+            ("true or false;", "true or false;"),
+            ("true and false;", "true and false;"),
+            ("true and true or false;", "true and true or false;"),
+            (
+                "true and true and false or true or false;",
+                "true and true and false or true or false;",
+            ),
+            ("false or false or true;", "false or false or true;"),
         ];
 
         for (source, expected) in test_cases {
