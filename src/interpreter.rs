@@ -78,6 +78,12 @@ impl<'a> Interpreter<'a> {
                 env.define(name.lexeme.to_string(), &value);
                 Ok(())
             }
+            Stmt::While(condition, body) => {
+                while self.is_truthy(&self.evaluate(condition, env)?) {
+                    self.execute(body, env)?;
+                }
+                Ok(())
+            }
             Stmt::Null => {
                 warn!("execute: reached null statement");
                 Ok(())
@@ -594,5 +600,22 @@ if (1 > 2) {
         for (source, expected) in test_cases {
             check(source, expected);
         }
+    }
+
+    #[test]
+    fn while_loop() {
+        let source = r#"
+var n = 0;
+while (n < 3) {
+  n = n + 1;
+  print n;
+}
+"#;
+        let expected = r#"
+1
+2
+3
+"#;
+        check(source, expected);
     }
 }

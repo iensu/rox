@@ -80,6 +80,9 @@ impl<'a> Parser<'a> {
         if self.match_next(&[PRINT]) {
             self.advance()?;
             self.print_statement()
+        } else if self.match_next(&[WHILE]) {
+            self.advance()?;
+            self.while_statement()
         } else if self.match_next(&[LEFT_BRACE]) {
             self.advance()?;
             Ok(Stmt::Block(self.block()?))
@@ -96,6 +99,15 @@ impl<'a> Parser<'a> {
         let expr = self.expression()?;
         self.verify_end_of_statement()?;
         Ok(Stmt::Print(Box::new(expr)))
+    }
+
+    fn while_statement(&'a self) -> Result<Stmt<'a>> {
+        self.consume(LEFT_PAREN, "Expect '(' after 'while'")?;
+        let condition = self.expression()?;
+        self.consume(RIGHT_PAREN, "Expect ')' after while condition")?;
+        let body = self.statement()?;
+
+        Ok(Stmt::While(Box::new(condition), Box::new(body)))
     }
 
     fn if_statement(&'a self) -> Result<Stmt<'a>> {

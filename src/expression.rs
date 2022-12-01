@@ -31,6 +31,7 @@ pub enum Stmt<'a> {
     If(Box<Expr<'a>>, Box<Stmt<'a>>, Option<Box<Stmt<'a>>>),
     Print(Box<Expr<'a>>),
     VarDecl(&'a token::Token<'a>, Option<Expr<'a>>),
+    While(Box<Expr<'a>>, Box<Stmt<'a>>),
     Null, // FIXME: Do we need this?
 }
 
@@ -58,6 +59,7 @@ impl<'a> std::fmt::Display for Stmt<'a> {
                 Some(e) => write!(f, "var {} = {};", ident.lexeme, e),
                 None => write!(f, "var {};", ident.lexeme),
             },
+            Stmt::While(cond, body) => write!(f, "while ({cond}) {body}"),
             Stmt::Null => write!(f, "<null statement>"),
         }
     }
