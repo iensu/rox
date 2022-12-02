@@ -618,4 +618,20 @@ while (n < 3) {
 "#;
         check(source, expected);
     }
+
+    #[test]
+    fn for_loop() {
+        let test_cases = [
+            ("for (var i = 1; i < 4; i = i + 1) print i;", "1\n2\n3"),
+            ("var i = 1; for (; i < 4; i = i + 1) print i;", "1\n2\n3"),
+            (
+                "var i = 1; for (;i < 4;) { print i; i = i + 1; }",
+                "1\n2\n3",
+            ),
+        ];
+
+        for (source, expected) in test_cases {
+            check(source, expected);
+        }
+    }
 }

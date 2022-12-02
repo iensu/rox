@@ -86,6 +86,9 @@ impl<'a> Parser<'a> {
         } else if self.match_next(&[LEFT_BRACE]) {
             self.advance()?;
             Ok(Stmt::Block(self.block()?))
+        } else if self.match_next(&[FOR]) {
+            self.advance()?;
+            self.for_statement()
         } else if self.match_next(&[IF]) {
             self.advance()?;
             self.if_statement()
@@ -134,6 +137,53 @@ impl<'a> Parser<'a> {
         let if_stmt = Stmt::If(Box::new(condition), Box::new(then_branch), else_branch);
         debug!("if_statement: {if_stmt}");
         Ok(if_stmt)
+    }
+
+    fn for_statement(&'a self) -> Result<Stmt<'a>> {
+        // Implements for loops as syntactic sugar and desugars the code into variable
+        // assignment, a while loop and a block with a final increment statement.
+
+        // Parsing step
+        self.consume(LEFT_PAREN, "Expect '(' after 'for'")?;
+
+        let initializer = if self.match_next(&[SEMICOLON]) {
+            self.advance()?;
+            None
+        } else if self.match_next(&[VAR]) {
+            self.advance()?;
+            Some(self.var_declaration()?)
+        } else {
+            Some(self.expression_statement()?)
+        };
+
+        let condition = if !self.match_next(&[SEMICOLON]) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(SEMICOLON, "Expect ';' after loop condition")?;
+
+        let increment = if !self.match_next(&[RIGHT_PAREN]) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(RIGHT_PAREN, "Expect ')' after loop condition")?;
+
+        let mut body = self.statement()?;
+
+        // Desugaring step
+        if let Some(increment) = increment {
+            body = Stmt::Block(vec![body, Stmt::Expression(Box::new(increment))]);
+        }
+        if let Some(condition) = condition {
+            body = Stmt::While(Box::new(condition), Box::new(body));
+        }
+        if let Some(initializer) = initializer {
+            body = Stmt::Block(vec![initializer, body]);
+        }
+
+        Ok(body)
     }
 
     fn block(&'a self) -> Result<Vec<Stmt<'a>>> {
