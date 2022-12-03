@@ -4,6 +4,11 @@ use crate::token;
 pub enum Expr<'a> {
     Assign(&'a token::Token<'a>, Box<Expr<'a>>),
     Binary(Box<Expr<'a>>, &'a token::Token<'a>, Box<Expr<'a>>),
+    Call {
+        callee: Box<Expr<'a>>,
+        closing_paren: &'a token::Token<'a>,
+        args: Vec<Expr<'a>>,
+    },
     Grouping(Box<Expr<'a>>),
     Literal(&'a token::Value),
     Logic(Box<Expr<'a>>, &'a token::Token<'a>, Box<Expr<'a>>),
@@ -16,6 +21,18 @@ impl<'a> std::fmt::Display for Expr<'a> {
         match self {
             Expr::Assign(t, e) => write!(f, "{} = {}", t.lexeme, e),
             Expr::Binary(l, op, r) => write!(f, "({} {} {})", op.lexeme, l, r),
+            Expr::Call { callee, args, .. } => {
+                write!(f, "{callee}(")?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i == 0 {
+                        write!(f, "{arg}")?;
+                    } else {
+                        write!(f, ", {arg}")?;
+                    }
+                }
+                write!(f, ")")?;
+                Ok(())
+            }
             Expr::Grouping(e) => write!(f, "(group {})", e),
             Expr::Literal(literal) => write!(f, "{}", literal),
             Expr::Logic(l, op, r) => write!(f, "{l} {} {r}", op.lexeme),
@@ -77,6 +94,10 @@ mod test {
 
     fn t(tt: TokenType, lexeme: &str) -> Token {
         Token::new(tt, lexeme.into(), V::Null, 0, 0)
+    }
+
+    fn l(value: &V) -> Expr {
+        Literal(value)
     }
 
     #[test]
@@ -141,5 +162,44 @@ mod test {
         let hello = V::String("hello world".into());
         let stmt = Stmt::Print(Box::new(Literal(&hello)));
         assert_eq!(format!("{}", stmt), "print \"hello world\";");
+    }
+
+    #[test]
+    fn call_displays_ok() {
+        let foo = V::Identifier("foo".to_string());
+        let hello = V::String("hello".to_string());
+        let x = V::Identifier("x".to_string());
+        let closing_paren = &t(RIGHT_PAREN, ")");
+
+        let test_cases = [
+            (
+                Call {
+                    callee: Box::new(l(&foo)),
+                    closing_paren,
+                    args: Vec::new(),
+                },
+                "foo()",
+            ),
+            (
+                Call {
+                    callee: Box::new(l(&foo)),
+                    closing_paren,
+                    args: vec![l(&x)],
+                },
+                "foo(x)",
+            ),
+            (
+                Call {
+                    callee: Box::new(l(&foo)),
+                    closing_paren,
+                    args: vec![l(&x), l(&V::Number(665.)), l(&V::Number(1.2)), l(&hello)],
+                },
+                r#"foo(x, 665, 1.2, "hello")"#,
+            ),
+        ];
+
+        for (input, expected) in test_cases {
+            assert_eq!(input.to_string(), expected)
+        }
     }
 }

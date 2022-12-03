@@ -349,8 +349,26 @@ impl<'a> Parser<'a> {
             debug!("unary: {expr}");
             expr
         } else {
-            self.primary()?
+            self.call()?
         };
+
+        Ok(expr)
+    }
+
+    fn call(&'a self) -> Result<Expr<'a>> {
+        trace!("call: entering");
+        let mut expr = self.primary()?;
+        trace!("call: callee {expr}");
+
+        loop {
+            if self.match_next(&[LEFT_PAREN]) {
+                self.advance()?;
+                expr = self.finish_call(expr)?;
+                debug!("call: {expr}");
+            } else {
+                break;
+            }
+        }
 
         Ok(expr)
     }
@@ -397,7 +415,6 @@ impl<'a> Parser<'a> {
     ///
     /// This method can be used to continue parsing after a parsing error has been
     /// encountered.
-    #[allow(dead_code)]
     fn synchronize(&'a self) -> Result<()> {
         let mut previous = self.advance()?;
 
@@ -454,6 +471,31 @@ impl<'a> Parser<'a> {
         }
 
         Err(anyhow::Error::msg(error_message))
+    }
+
+    fn finish_call(&'a self, callee: Expr<'a>) -> Result<Expr<'a>> {
+        let mut args = Vec::new();
+
+        if !self.match_next(&[RIGHT_PAREN]) {
+            let mut has_more = true;
+
+            while has_more {
+                args.push(self.expression()?);
+                has_more = self.match_next(&[COMMA]);
+
+                if has_more {
+                    self.advance()?;
+                }
+            }
+        }
+
+        let closing_paren = self.consume(RIGHT_PAREN, "Expect ')' after arguments.")?;
+
+        Ok(Expr::Call {
+            callee: Box::new(callee),
+            closing_paren,
+            args,
+        })
     }
 }
 
@@ -546,6 +588,19 @@ mod test {
                 "true and true and false or true or false;",
             ),
             ("false or false or true;", "false or false or true;"),
+        ];
+
+        for (source, expected) in test_cases {
+            check(source, expected);
+        }
+    }
+
+    #[test]
+    fn call_expressions() {
+        let test_cases = vec![
+            ("foo();", "foo();"),
+            ("foo(x);", "foo(x);"),
+            ("foo(42, y, z);", "foo(42, y, z);"),
         ];
 
         for (source, expected) in test_cases {

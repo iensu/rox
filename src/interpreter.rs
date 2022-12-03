@@ -121,12 +121,14 @@ impl<'a> Interpreter<'a> {
                 env.assign(name, &value)?;
                 Ok(Value::Void)
             }
+            Expr::Call { .. } => todo!(),
             Expr::Logic(left, op, right) if [AND, OR].contains(&op.token_type) => {
                 let left = self.evaluate(left, env)?;
 
-                if op.token_type == OR && self.is_truthy(&left) {
-                    return Ok(left);
-                } else if op.token_type == AND && !self.is_truthy(&left) {
+                let return_left_side = op.token_type == OR && self.is_truthy(&left)
+                    || op.token_type == AND && !self.is_truthy(&left);
+
+                if return_left_side {
                     return Ok(left);
                 }
 
